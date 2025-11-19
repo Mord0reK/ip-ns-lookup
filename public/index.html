@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IP Lookup - Odpowiednik nslookup.io</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+     crossorigin=""/>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>IP Lookup Tool</h1>
+            <p>Sprawdź informacje o adresie IP i jego lokalizację.</p>
+        </header>
+
+        <div class="search-box">
+            <input type="text" id="ip-input" placeholder="Wpisz adres IP (np. 8.8.8.8) lub zostaw puste dla swojego IP">
+            <button id="search-btn">Szukaj</button>
+        </div>
+
+        <div id="loading" class="hidden">Ładowanie danych...</div>
+        <div id="error" class="hidden"></div>
+
+        <div id="results" class="hidden">
+            <div class="info-grid">
+                <div class="card">
+                    <h3>Adres IP</h3>
+                    <p id="res-ip">-</p>
+                </div>
+                <div class="card">
+                    <h3>Hostname</h3>
+                    <p id="res-hostname">-</p>
+                </div>
+                <div class="card">
+                    <h3>Miasto</h3>
+                    <p id="res-city">-</p>
+                </div>
+                <div class="card">
+                    <h3>Region</h3>
+                    <p id="res-region">-</p>
+                </div>
+                <div class="card">
+                    <h3>Kraj</h3>
+                    <p id="res-country">-</p>
+                </div>
+                <div class="card">
+                    <h3>Dostawca (ISP/Org)</h3>
+                    <p id="res-org">-</p>
+                </div>
+                <div class="card">
+                    <h3>Lokalizacja (Lat, Long)</h3>
+                    <p id="res-loc">-</p>
+                </div>
+                <div class="card">
+                    <h3>Strefa czasowa</h3>
+                    <p id="res-timezone">-</p>
+                </div>
+            </div>
+
+            <div id="map-container">
+                <div id="map"></div>
+            </div>
+            
+            <div class="raw-data">
+                <h3>Surowe dane JSON</h3>
+                <pre id="res-json"></pre>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+     crossorigin=""></script>
+    <script src="script.js"></script>
+</body>
+</html>
