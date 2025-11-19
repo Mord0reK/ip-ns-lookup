@@ -95,7 +95,11 @@ function displayResults(data) {
     const resultsDiv = document.getElementById('results');
     
     // Wypełnianie pól
-    setText('res-ip', data.ip);
+    if (data.query_domain) {
+        setText('res-ip', `${data.ip} (${data.query_domain})`);
+    } else {
+        setText('res-ip', data.ip);
+    }
     setText('res-hostname', data.hostname);
     setText('res-city', data.city);
     setText('res-region', data.region);

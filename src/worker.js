@@ -18,9 +18,25 @@ export default {
     if (url.pathname.startsWith("/api/lookup")) {
       const targetIp = url.searchParams.get("ip");
       
-      // Jeśli podano IP w parametrze, użyj go.
-      // Jeśli nie, użyj IP użytkownika z nagłówka Cloudflare.
-      const ipToLookup = targetIp || request.headers.get("CF-Connecting-IP");
+      let ipToLookup = targetIp;
+      let queryDomain = null;
+
+      // Jeśli nie podano parametru, weź IP użytkownika
+      if (!ipToLookup) {
+        ipToLookup = request.headers.get("CF-Connecting-IP");
+      } else if (!isIpAddress(ipToLookup)) {
+        // Jeśli podano coś co nie jest IP, zakładamy że to domena
+        queryDomain = ipToLookup;
+        const resolvedIp = await resolveDns(ipToLookup);
+        
+        if (!resolvedIp) {
+           return new Response(JSON.stringify({ error: `Nie udało się rozwiązać domeny: ${ipToLookup}` }), {
+            status: 404,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+        ipToLookup = resolvedIp;
+      }
 
       if (!ipToLookup) {
         return new Response(JSON.stringify({ error: "Nie udało się ustalić adresu IP" }), {
@@ -42,6 +58,11 @@ export default {
         }
 
         const data = await response.json();
+        
+        // Dodajemy informację o szukanej domenie, jeśli była
+        if (queryDomain) {
+            data.query_domain = queryDomain;
+        }
 
         return new Response(JSON.stringify(data), {
           headers: { ...corsHeaders, "Content-Type": "application/json" }
@@ -59,3 +80,31 @@ export default {
     return new Response("Not Found", { status: 404, headers: corsHeaders });
   },
 };
+
+function isIpAddress(str) {
+    // Proste sprawdzenie IPv4
+    const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}$/;
+    if (ipv4Regex.test(str)) return true;
+    
+    // Proste sprawdzenie IPv6 (musi zawierać dwukropek)
+    if (str.includes(':')) return true;
+    
+    return false;
+}
+
+async function resolveDns(domain) {
+    const dohUrl = `https://cloudflare-dns.com/dns-query?name=${domain}&type=A`;
+    try {
+        const response = await fetch(dohUrl, {
+            headers: { 'Accept': 'application/dns-json' }
+        });
+        const data = await response.json();
+        if (data.Status === 0 && data.Answer) {
+            const record = data.Answer.find(r => r.type === 1); // Type A
+            return record ? record.data : null;
+        }
+    } catch (e) {
+        console.error("DNS resolution error:", e);
+    }
+    return null;
+}
