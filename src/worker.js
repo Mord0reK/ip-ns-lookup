@@ -64,7 +64,7 @@ export default {
       // We will try it for both, as it provides useful info for domains too (hosting info).
       const ipInfoPromise = (async () => {
         try {
-          const fields = "status,message,country,regionName,city,lat,lon,isp,org,as,proxy,hosting,query";
+          const fields = "status,message,country,regionName,city,lat,lon,isp,org,as,proxy,hosting,query,timezone,currency";
           const res = await fetch(`http://ip-api.com/json/${target}?fields=${fields}`);
           if (!res.ok) throw new Error("IP-API failed");
           return await res.json();

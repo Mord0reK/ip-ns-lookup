@@ -39,7 +39,7 @@ async function handleAnalyze() {
         const data = await response.json();
 
         if (!response.ok) {
-            throw new Error(data.error || 'Failed to fetch data');
+            throw new Error(data.error || 'Nie udało się pobrać danych');
         }
 
         renderData(data);
@@ -65,83 +65,127 @@ function setLoading(isLoading) {
 }
 
 function renderData(data) {
-    renderNetworkInfo(data.ipInfo, data.shodan);
+    renderNetworkCard(data.ipInfo);
+    renderInfrastructureCard(data.shodan);
+    renderVulns(data.shodan);
+    renderGeoCard(data.ipInfo);
     renderMap(data.ipInfo);
-    renderAbuse(data.abuse);
+    renderAbuseCard(data.abuse);
     renderDNS(data.dns);
 }
 
-function renderNetworkInfo(info, shodan) {
+function renderNetworkCard(info) {
     const container = document.getElementById('networkInfoGrid');
     container.innerHTML = '';
 
     if (info.error) {
-        container.innerHTML = `<div class="col-span-2 text-red-400">Error fetching IP info: ${info.message}</div>`;
+        container.innerHTML = `<div class="text-red-400 text-sm">Błąd: ${info.message}</div>`;
         return;
     }
 
     const fields = [
         { label: 'Adres IP', value: info.query, copy: true },
-        { label: 'ISP (Dostawca)', value: info.isp },
+        { label: 'Dostawca (ISP)', value: info.isp },
+        { label: 'ASN', value: info.as },
         { label: 'Organizacja', value: info.org },
-        { label: 'AS', value: info.as },
-        { label: 'Kraj', value: `${info.country} (${info.countryCode || '-'})` },
-        { label: 'Miasto', value: `${info.regionName}, ${info.city}` },
-        { label: 'Czy hosting?', value: info.hosting ? 'Tak' : 'Nie' },
-        { label: 'Czy proxy?', value: info.proxy ? 'Tak' : 'Nie' },
+        { label: 'Hosting', value: info.hosting ? 'Tak' : 'Nie' },
+        { label: 'Proxy/VPN', value: info.proxy ? 'Tak' : 'Nie' },
     ];
 
     fields.forEach(field => {
         const div = document.createElement('div');
-        div.className = 'flex flex-col border-b border-zinc-800 pb-2 last:border-0';
+        div.className = 'flex justify-between items-center border-b border-zinc-800 pb-2 last:border-0';
         div.innerHTML = `
-                    <span class="text-zinc-500 text-xs uppercase tracking-wider mb-1">${field.label}</span>
-                    <span class="text-zinc-200 font-medium break-all">${field.value || 'N/A'}</span>
-                `;
+            <span class="text-zinc-500 text-xs uppercase tracking-wider">${field.label}</span>
+            <span class="text-zinc-200 font-medium text-sm text-right truncate max-w-[60%]">${field.value || 'N/A'}</span>
+        `;
         container.appendChild(div);
     });
+}
 
-    // Shodan Data Integration
-    if (shodan) {
-        // Hosted Domains
-        if (shodan.hostnames && shodan.hostnames.length > 0) {
-            const div = document.createElement('div');
-            div.className = 'flex flex-col border-b border-zinc-800 pb-2 last:border-0 pt-2';
-            div.innerHTML = `
-                <span class="text-zinc-500 text-xs uppercase tracking-wider mb-2">Domeny hostowane</span>
-                <div class="flex flex-wrap gap-2">
-                    ${shodan.hostnames.map(h => `<span class="bg-zinc-800 text-zinc-300 px-2 py-1 rounded text-xs border border-zinc-700 break-all">${h}</span>`).join('')}
-                </div>
-            `;
-            container.appendChild(div);
-        }
+function renderInfrastructureCard(shodan) {
+    const container = document.getElementById('infrastructureGrid');
+    container.innerHTML = '';
 
-        // Open Ports
-        if (shodan.ports && shodan.ports.length > 0) {
-            const div = document.createElement('div');
-            div.className = 'flex flex-col border-b border-zinc-800 pb-2 last:border-0 pt-2';
-            div.innerHTML = `
-                <span class="text-zinc-500 text-xs uppercase tracking-wider mb-2">Otwarte porty</span>
-                <div class="flex flex-wrap gap-2">
-                    ${shodan.ports.map(p => `<span class="bg-sky-900/30 text-sky-400 px-2 py-1 rounded text-xs border border-sky-800/50 font-mono">${p}</span>`).join('')}
-                </div>
-            `;
-            container.appendChild(div);
-        }
-
-        // Vulnerabilities
-        if (shodan.vulns && shodan.vulns.length > 0) {
-            const div = document.createElement('div');
-            div.className = 'flex flex-col border-b border-zinc-800 pb-2 last:border-0 pt-2';
-            div.innerHTML = `
-                <span class="text-zinc-500 text-xs uppercase tracking-wider mb-2">Vulnerabilities (CVE)</span>
-                <div class="flex flex-wrap gap-2">
-                    ${shodan.vulns.map(v => `<a href="https://nvd.nist.gov/vuln/detail/${v}" target="_blank" class="bg-red-900/20 text-red-400 hover:text-red-300 px-2 py-1 rounded text-xs border border-red-900/50 font-mono transition-colors">${v}</a>`).join('')}
-                </div>
-            `;
-            container.appendChild(div);
-        }
+    if (!shodan || (!shodan.ports?.length && !shodan.hostnames?.length)) {
+        container.innerHTML = '<div class="text-zinc-600 text-sm italic text-center py-4">Brak danych o infrastrukturze.</div>';
+        return;
     }
+
+    // Ports
+    if (shodan.ports && shodan.ports.length > 0) {
+        const div = document.createElement('div');
+        div.innerHTML = `
+            <span class="text-zinc-500 text-xs uppercase tracking-wider block mb-2">Otwarte porty</span>
+            <div class="flex flex-wrap gap-2">
+                ${shodan.ports.map(p => `<span class="bg-zinc-800 text-sky-400 px-2 py-1 rounded text-xs border border-zinc-700 font-mono">${p}</span>`).join('')}
+            </div>
+        `;
+        container.appendChild(div);
+    }
+
+    // Hostnames
+    if (shodan.hostnames && shodan.hostnames.length > 0) {
+        const div = document.createElement('div');
+        div.innerHTML = `
+            <span class="text-zinc-500 text-xs uppercase tracking-wider block mb-2">Nazwy hostów</span>
+            <div class="flex flex-wrap gap-2">
+                ${shodan.hostnames.slice(0, 5).map(h => `<span class="bg-zinc-800 text-zinc-300 px-2 py-1 rounded text-xs border border-zinc-700 truncate max-w-full">${h}</span>`).join('')}
+                ${shodan.hostnames.length > 5 ? `<span class="text-zinc-500 text-xs self-center">+${shodan.hostnames.length - 5} więcej</span>` : ''}
+            </div>
+        `;
+        container.appendChild(div);
+    }
+}
+
+function renderVulns(shodan) {
+    const container = document.getElementById('vulnsContainer');
+    if (!container) return;
+    container.innerHTML = '';
+
+    if (!shodan || !shodan.vulns || shodan.vulns.length === 0) {
+        container.innerHTML = '<div class="text-zinc-600 text-sm italic text-center py-2">Brak wykrytych podatności (CVE).</div>';
+        return;
+    }
+
+    const div = document.createElement('div');
+    div.innerHTML = `
+        <span class="text-zinc-500 text-xs uppercase tracking-wider block mb-2">Podatności (CVE)</span>
+        <div class="flex flex-wrap gap-2">
+            ${shodan.vulns.slice(0, 5).map(v => `<a href="https://nvd.nist.gov/vuln/detail/${v}" target="_blank" class="bg-red-900/20 text-red-400 hover:text-red-300 px-2 py-1 rounded text-xs border border-red-900/50 font-mono transition-colors">${v}</a>`).join('')}
+             ${shodan.vulns.length > 5 ? `<span class="text-zinc-500 text-xs self-center">+${shodan.vulns.length - 5} więcej</span>` : ''}
+        </div>
+    `;
+    container.appendChild(div);
+}
+
+function renderGeoCard(info) {
+    const container = document.getElementById('geoDetailsGrid');
+    container.innerHTML = '';
+
+    if (info.error) {
+        container.innerHTML = `<div class="text-red-400 text-sm">Błąd: ${info.message}</div>`;
+        return;
+    }
+
+    const fields = [
+        { label: 'Kraj', value: `${info.country} (${info.countryCode || '-'})` },
+        { label: 'Region', value: info.regionName },
+        { label: 'Miasto', value: info.city },
+        { label: 'Współrzędne', value: `${info.lat}, ${info.lon}` },
+        { label: 'Strefa czasowa', value: info.timezone },
+        { label: 'Waluta', value: info.currency },
+    ];
+
+    fields.forEach(field => {
+        const div = document.createElement('div');
+        div.className = 'flex justify-between items-center border-b border-zinc-800 pb-2 last:border-0';
+        div.innerHTML = `
+            <span class="text-zinc-500 text-xs uppercase tracking-wider">${field.label}</span>
+            <span class="text-zinc-200 font-medium text-sm text-right truncate max-w-[60%]">${field.value || 'N/A'}</span>
+        `;
+        container.appendChild(div);
+    });
 }
 
 function renderMap(info) {
@@ -175,42 +219,37 @@ function renderMap(info) {
     }
 }
 
-function renderAbuse(abuse) {
-    const container = document.getElementById('abuseInfo');
-    const badge = document.getElementById('abuseScoreBadge');
+function renderAbuseCard(abuse) {
+    const container = document.getElementById('abuseCardContent');
     container.innerHTML = '';
 
     if (abuse.error || abuse.abuseSkipped) {
-        container.innerHTML = `<div class="col-span-3 text-zinc-500 italic">${abuse.message || 'Brak dostępnych informacji z AbuseIPDB'}</div>`;
-        badge.classList.add('hidden');
+        container.innerHTML = `<div class="text-zinc-500 italic text-sm">Brak danych z AbuseIPDB</div>`;
         return;
     }
 
-    // Score Logic
     const score = abuse.abuseConfidenceScore || 0;
-    let colorClass = 'bg-green-500/20 text-green-400 border-green-500/50';
-    if (score > 20) colorClass = 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50';
-    if (score > 60) colorClass = 'bg-red-500/20 text-red-400 border-red-500/50';
+    let colorClass = 'text-green-400';
+    if (score > 20) colorClass = 'text-yellow-400';
+    if (score > 60) colorClass = 'text-red-500';
 
-    badge.className = `px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${colorClass}`;
-    badge.textContent = `Risk Score: ${score}%`;
-    badge.classList.remove('hidden');
-
-    const items = [
-        { label: 'Pewność', value: `${score}%` },
-        { label: 'Łącznie zgłoszeń', value: abuse.totalReports || 0 },
-        { label: 'Ostatnio zgłoszono', value: abuse.lastReportedAt ? new Date(abuse.lastReportedAt).toLocaleDateString() : 'Nigdy' }
-    ];
-
-    items.forEach(item => {
-        const div = document.createElement('div');
-        div.className = 'bg-zinc-900/50 rounded-lg p-4 border border-zinc-800';
-        div.innerHTML = `
-                    <div class="text-2xl font-bold text-zinc-100 mb-1">${item.value}</div>
-                    <div class="text-xs text-zinc-500 uppercase tracking-wider">${item.label}</div>
-                `;
-        container.appendChild(div);
-    });
+    container.innerHTML = `
+        <div class="flex flex-col items-center justify-center mb-4">
+            <span class="text-6xl font-bold ${colorClass}">${score}%</span>
+            <span class="text-zinc-400 text-xs uppercase tracking-widest mt-2">Wskaźnik pewności</span>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-4 w-full mt-2">
+            <div class="bg-zinc-800/50 rounded-xl p-3 flex flex-col items-center">
+                <span class="text-xl font-bold text-zinc-200">${abuse.totalReports || 0}</span>
+                <span class="text-[10px] text-zinc-500 uppercase">Łącznie zgłoszeń</span>
+            </div>
+            <div class="bg-zinc-800/50 rounded-xl p-3 flex flex-col items-center">
+                <span class="text-sm font-bold text-zinc-200 truncate w-full text-center">${abuse.lastReportedAt ? new Date(abuse.lastReportedAt).toLocaleDateString() : '-'}</span>
+                <span class="text-[10px] text-zinc-500 uppercase">Ostatnie zgłoszenie</span>
+            </div>
+        </div>
+    `;
 }
 
 function renderDNS(dns) {
@@ -218,8 +257,20 @@ function renderDNS(dns) {
     container.innerHTML = '';
 
     const types = Object.keys(dns);
+
+    // Sort types: A, AAAA first, then others
+    const priority = ['A', 'AAAA', 'MX', 'NS', 'CNAME', 'TXT', 'SOA'];
+    types.sort((a, b) => {
+        const idxA = priority.indexOf(a);
+        const idxB = priority.indexOf(b);
+        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+        if (idxA !== -1) return -1;
+        if (idxB !== -1) return 1;
+        return a.localeCompare(b);
+    });
+
     if (types.length === 0) {
-        container.innerHTML = '<div class="text-zinc-500">No DNS records found.</div>';
+        container.innerHTML = '<div class="text-zinc-500 col-span-full text-center py-8">Nie znaleziono rekordów DNS.</div>';
         return;
     }
 
@@ -228,7 +279,7 @@ function renderDNS(dns) {
         if (!records || records.length === 0) return;
 
         const section = document.createElement('div');
-        section.className = 'bg-zinc-900 rounded-xl shadow-lg border border-zinc-800 overflow-hidden';
+        section.className = 'bg-zinc-800/50 rounded-xl border border-zinc-700/50 overflow-hidden flex flex-col';
 
         let rows = '';
         records.forEach(record => {
@@ -239,50 +290,50 @@ function renderDNS(dns) {
             if (type === 'TXT') {
                 const services = detectServices(content);
                 if (services.length > 0) {
-                    logosHtml = `<div class="flex flex-wrap gap-2 mt-2 items-center">
+                    logosHtml = `<div class="flex flex-wrap gap-2 mt-1 items-center">
                         ${services.map(domain => `
-                            <div class="flex items-center gap-1 bg-zinc-800 px-2 py-1 rounded border border-zinc-700" title="${domain}">
+                            <div class="flex items-center gap-1 bg-zinc-900/50 px-1.5 py-0.5 rounded border border-zinc-700/50" title="${domain}">
                                 <img src="https://www.google.com/s2/favicons?domain=${domain}&sz=32" 
                                      alt="${domain}" 
-                                     class="w-4 h-4 rounded-sm" />
-                                <span class="text-xs text-zinc-300">${domain}</span>
+                                     class="w-3 h-3 rounded-sm" />
+                                <span class="text-[10px] text-zinc-400">${domain}</span>
                             </div>
                         `).join('')}
                     </div>`;
                 }
 
                 if (content.includes('v=spf1')) {
-                    content = `<span class="text-green-400 font-mono break-all">${content}</span>`;
+                    content = `<span class="text-green-400 font-mono break-all text-xs">${content}</span>`;
                 } else if (content.includes('v=DMARC1')) {
-                    content = `<span class="text-blue-400 font-mono break-all">${content}</span>`;
+                    content = `<span class="text-blue-400 font-mono break-all text-xs">${content}</span>`;
                 } else {
-                    content = `<span class="font-mono text-zinc-300 break-all">${content}</span>`;
+                    content = `<span class="font-mono text-zinc-300 break-all text-xs">${content}</span>`;
                 }
+            } else {
+                 content = `<span class="font-mono text-zinc-300 break-all text-xs">${content}</span>`;
             }
 
             rows += `
-                        <tr class="hover:bg-zinc-800/50 transition-colors">
-                            <td class="px-6 py-3 text-sm text-zinc-300 font-mono whitespace-nowrap w-32 align-top">${record.name}</td>
-                            <td class="px-6 py-3 text-sm text-zinc-300 font-mono align-top">
-                                <div>${content}</div>
-                                ${logosHtml}
-                            </td>
-                            <td class="px-6 py-3 text-sm text-zinc-500 text-right w-24 align-top">${record.TTL}s</td>
-                        </tr>
+                        <div class="px-4 py-2 border-b border-zinc-700/30 last:border-0 hover:bg-zinc-700/20 transition-colors">
+                            <div class="flex justify-between items-start gap-4">
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-xs text-zinc-500 font-mono mb-0.5">${record.name}</div>
+                                    <div>${content}</div>
+                                    ${logosHtml}
+                                </div>
+                                <div class="text-xs text-zinc-600 font-mono whitespace-nowrap">${record.TTL}s</div>
+                            </div>
+                        </div>
                     `;
         });
 
         section.innerHTML = `
-                    <div class="px-6 py-3 border-b border-zinc-800 bg-zinc-900/50 flex items-center gap-2">
-                        <span class="bg-zinc-800 text-zinc-200 px-2 py-1 rounded text-xs font-bold w-12 text-center">${type}</span>
-                        <span class="text-sm text-zinc-400">${records.length} record(s)</span>
+                    <div class="px-4 py-2 border-b border-zinc-700/50 bg-zinc-800 flex items-center justify-between">
+                        <span class="text-zinc-200 font-bold text-sm">${type}</span>
+                        <span class="bg-zinc-900 text-zinc-500 px-2 py-0.5 rounded text-[10px] font-mono">${records.length}</span>
                     </div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left border-collapse">
-                            <tbody class="divide-y divide-zinc-800">
-                                ${rows}
-                            </tbody>
-                        </table>
+                    <div class="flex-1 overflow-y-auto max-h-[300px]">
+                        ${rows}
                     </div>
                 `;
         container.appendChild(section);
