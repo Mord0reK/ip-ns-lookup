@@ -1,138 +1,234 @@
-// Konfiguracja
-// Jeśli Worker jest na innej domenie, wpisz tutaj pełny adres, np. "https://twoj-worker.workers.dev/api/lookup"
-const API_URL = "/api/lookup"; 
+// --- Map Initialization ---
+let map = L.map('map', {
+    zoomControl: false,
+    attributionControl: false
+}).setView([20, 0], 2);
 
-let map = null;
-let marker = null;
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    subdomains: 'abcd',
+    maxZoom: 19
+}).addTo(map);
 
-document.addEventListener('DOMContentLoaded', () => {
-    initMap();
-    
-    // Sprawdź czy w URL jest adres IP (np. https://strona.com/1.2.3.4)
-    const pathIp = window.location.pathname.substring(1); // usuwa pierwszy slash
-    
-    // Prosta walidacja czy to co jest w ścieżce wygląda jak IP (lub jest puste)
-    // Ignorujemy 'index.html' itp.
-    if (pathIp && pathIp !== "index.html" && !pathIp.includes("/")) {
-        document.getElementById('ip-input').value = pathIp;
-        fetchData(pathIp);
-    } else {
-        // Jeśli brak IP w ścieżce, pobierz dane dla obecnego użytkownika (pusty parametr)
-        fetchData();
-    }
+let currentMarker = null;
 
-    // Obsługa przycisku szukaj
-    document.getElementById('search-btn').addEventListener('click', () => {
-        const ip = document.getElementById('ip-input').value.trim();
-        // Aktualizuj URL bez przeładowania (opcjonalne, ale ładne)
-        if (ip) {
-            window.history.pushState({}, '', '/' + ip);
-            fetchData(ip);
-        } else {
-            window.history.pushState({}, '', '/');
-            fetchData();
-        }
-    });
+// --- UI Logic ---
+const btn = document.getElementById('analyzeBtn');
+const btnText = document.getElementById('btnText');
+const btnLoader = document.getElementById('btnLoader');
+const input = document.getElementById('targetInput');
+const errorMsg = document.getElementById('errorMsg');
+const resultsDiv = document.getElementById('results');
 
-    // Obsługa entera w polu input
-    document.getElementById('ip-input').addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            document.getElementById('search-btn').click();
-        }
-    });
+btn.addEventListener('click', handleAnalyze);
+input.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') handleAnalyze();
 });
 
-function initMap() {
-    // Inicjalizacja mapy (domyślnie widok na świat)
-    map = L.map('map').setView([20, 0], 2);
-    
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '© OpenStreetMap'
-    }).addTo(map);
-}
+async function handleAnalyze() {
+    const target = input.value.trim();
+    if (!target) return;
 
-async function fetchData(ip = "") {
-    const loading = document.getElementById('loading');
-    const errorDiv = document.getElementById('error');
-    const resultsDiv = document.getElementById('results');
-
-    loading.classList.remove('hidden');
-    errorDiv.classList.add('hidden');
+    // Reset UI
+    setLoading(true);
+    errorMsg.classList.add('hidden');
     resultsDiv.classList.add('hidden');
 
     try {
-        // Budowanie URL zapytania
-        let url = `${API_URL}`;
-        if (ip) {
-            url += `?ip=${ip}`;
-        }
-
-        const response = await fetch(url);
-        
-        if (!response.ok) {
-            throw new Error(`Błąd sieci: ${response.status} ${response.statusText}`);
-        }
-
+        // Fetch from Worker
+        // Note: In development with `wrangler dev`, the worker is usually at localhost:8787
+        // In production (Pages), it's relative /api/analyze
+        // We'll assume relative path for production readiness.
+        // If running locally, you might need to adjust or proxy.
+        const response = await fetch(`/api/analyze?target=${encodeURIComponent(target)}`);
         const data = await response.json();
 
-        if (data.error) {
-            throw new Error(data.error);
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to fetch data');
         }
 
-        displayResults(data);
+        renderData(data);
+        resultsDiv.classList.remove('hidden');
 
     } catch (err) {
-        console.error(err);
-        errorDiv.textContent = `Wystąpił błąd: ${err.message}. Upewnij się, że Worker działa i jest poprawnie skonfigurowany.`;
-        errorDiv.classList.remove('hidden');
+        errorMsg.textContent = err.message;
+        errorMsg.classList.remove('hidden');
     } finally {
-        loading.classList.add('hidden');
+        setLoading(false);
     }
 }
 
-function displayResults(data) {
-    const resultsDiv = document.getElementById('results');
-    
-    // Wypełnianie pól
-    if (data.query_domain) {
-        setText('res-ip', `${data.ip} (${data.query_domain})`);
+function setLoading(isLoading) {
+    btn.disabled = isLoading;
+    if (isLoading) {
+        btnText.classList.add('hidden');
+        btnLoader.classList.remove('hidden');
     } else {
-        setText('res-ip', data.ip);
+        btnText.classList.remove('hidden');
+        btnLoader.classList.add('hidden');
     }
-    setText('res-hostname', data.hostname);
-    setText('res-city', data.city);
-    setText('res-region', data.region);
-    setText('res-country', data.country);
-    setText('res-org', data.org);
-    setText('res-loc', data.loc);
-    setText('res-timezone', data.timezone);
-    
-    // JSON raw
-    document.getElementById('res-json').textContent = JSON.stringify(data, null, 2);
-
-    // Aktualizacja mapy
-    if (data.loc) {
-        const [lat, lon] = data.loc.split(',').map(Number);
-        if (!isNaN(lat) && !isNaN(lon)) {
-            map.setView([lat, lon], 13);
-            
-            if (marker) {
-                map.removeLayer(marker);
-            }
-            
-            marker = L.marker([lat, lon]).addTo(map)
-                .bindPopup(`<b>${data.ip}</b><br>${data.city}, ${data.country}`)
-                .openPopup();
-        }
-    }
-
-    resultsDiv.classList.remove('hidden');
 }
 
-function setText(id, text) {
-    const el = document.getElementById(id);
-    if (el) {
-        el.textContent = text || '-';
+function renderData(data) {
+    renderNetworkInfo(data.ipInfo);
+    renderMap(data.ipInfo);
+    renderAbuse(data.abuse);
+    renderDNS(data.dns);
+}
+
+function renderNetworkInfo(info) {
+    const container = document.getElementById('networkInfoGrid');
+    container.innerHTML = '';
+
+    if (info.error) {
+        container.innerHTML = `<div class="col-span-2 text-red-400">Error fetching IP info: ${info.message}</div>`;
+        return;
     }
+
+    const fields = [
+        { label: 'IP Address', value: info.query, copy: true },
+        { label: 'ISP', value: info.isp },
+        { label: 'Organization', value: info.org },
+        { label: 'AS', value: info.as },
+        { label: 'Country', value: `${info.country} (${info.countryCode || '-'})` },
+        { label: 'Region/City', value: `${info.regionName}, ${info.city}` },
+        { label: 'Hosting', value: info.hosting ? 'Yes' : 'No' },
+        { label: 'Proxy', value: info.proxy ? 'Yes' : 'No' },
+    ];
+
+    fields.forEach(field => {
+        const div = document.createElement('div');
+        div.className = 'flex flex-col border-b border-slate-700/50 pb-2 last:border-0';
+        div.innerHTML = `
+                    <span class="text-slate-500 text-xs uppercase tracking-wider mb-1">${field.label}</span>
+                    <span class="text-slate-200 font-medium break-all">${field.value || 'N/A'}</span>
+                `;
+        container.appendChild(div);
+    });
+}
+
+function renderMap(info) {
+    const overlay = document.getElementById('mapOverlay');
+
+    if (info.status === 'success' && info.lat && info.lon) {
+        overlay.classList.add('hidden');
+
+        // Update Map
+        const lat = info.lat;
+        const lon = info.lon;
+
+        map.setView([lat, lon], 10);
+
+        if (currentMarker) {
+            map.removeLayer(currentMarker);
+        }
+
+        currentMarker = L.circleMarker([lat, lon], {
+            color: '#38bdf8', // sky-400
+            fillColor: '#38bdf8',
+            fillOpacity: 0.5,
+            radius: 10
+        }).addTo(map);
+
+        // Force map resize to fix rendering issues if container was hidden
+        setTimeout(() => { map.invalidateSize(); }, 100);
+
+    } else {
+        overlay.classList.remove('hidden');
+    }
+}
+
+function renderAbuse(abuse) {
+    const container = document.getElementById('abuseInfo');
+    const badge = document.getElementById('abuseScoreBadge');
+    container.innerHTML = '';
+
+    if (abuse.error || abuse.abuseSkipped) {
+        container.innerHTML = `<div class="col-span-3 text-slate-500 italic">${abuse.message || 'No abuse data available'}</div>`;
+        badge.classList.add('hidden');
+        return;
+    }
+
+    // Score Logic
+    const score = abuse.abuseConfidenceScore || 0;
+    let colorClass = 'bg-green-500/20 text-green-400 border-green-500/50';
+    if (score > 20) colorClass = 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50';
+    if (score > 60) colorClass = 'bg-red-500/20 text-red-400 border-red-500/50';
+
+    badge.className = `px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${colorClass}`;
+    badge.textContent = `Risk Score: ${score}%`;
+    badge.classList.remove('hidden');
+
+    const items = [
+        { label: 'Confidence Score', value: `${score}%` },
+        { label: 'Total Reports', value: abuse.totalReports || 0 },
+        { label: 'Last Reported', value: abuse.lastReportedAt ? new Date(abuse.lastReportedAt).toLocaleDateString() : 'Never' }
+    ];
+
+    items.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'bg-slate-900/50 rounded-lg p-4 border border-slate-700';
+        div.innerHTML = `
+                    <div class="text-2xl font-bold text-slate-100 mb-1">${item.value}</div>
+                    <div class="text-xs text-slate-500 uppercase tracking-wider">${item.label}</div>
+                `;
+        container.appendChild(div);
+    });
+}
+
+function renderDNS(dns) {
+    const container = document.getElementById('dnsContainer');
+    container.innerHTML = '';
+
+    const types = Object.keys(dns);
+    if (types.length === 0) {
+        container.innerHTML = '<div class="text-slate-500">No DNS records found.</div>';
+        return;
+    }
+
+    types.forEach(type => {
+        const records = dns[type];
+        if (!records || records.length === 0) return;
+
+        const section = document.createElement('div');
+        section.className = 'bg-slate-800 rounded-xl shadow-lg border border-slate-700 overflow-hidden';
+
+        let rows = '';
+        records.forEach(record => {
+            // Highlight SPF/DMARC in TXT
+            let content = record.data;
+            if (type === 'TXT') {
+                if (content.includes('v=spf1')) {
+                    content = `<span class="text-green-400 font-mono">${content}</span>`;
+                } else if (content.includes('v=DMARC1')) {
+                    content = `<span class="text-blue-400 font-mono">${content}</span>`;
+                } else {
+                    content = `<span class="font-mono text-slate-300">${content}</span>`;
+                }
+            }
+
+            rows += `
+                        <tr class="hover:bg-slate-700/30 transition-colors">
+                            <td class="px-6 py-3 text-sm text-slate-300 font-mono whitespace-nowrap w-32">${record.name}</td>
+                            <td class="px-6 py-3 text-sm text-slate-300 font-mono break-all">${content}</td>
+                            <td class="px-6 py-3 text-sm text-slate-500 text-right w-24">${record.TTL}s</td>
+                        </tr>
+                    `;
+        });
+
+        section.innerHTML = `
+                    <div class="px-6 py-3 border-b border-slate-700 bg-slate-800/50 flex items-center gap-2">
+                        <span class="bg-slate-700 text-slate-200 px-2 py-1 rounded text-xs font-bold w-12 text-center">${type}</span>
+                        <span class="text-sm text-slate-400">${records.length} record(s)</span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <tbody class="divide-y divide-slate-700">
+                                ${rows}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+        container.appendChild(section);
+    });
 }
