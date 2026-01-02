@@ -77,7 +77,7 @@ export default {
       // AbuseIPDB requires an IP address. If target is a domain, this will likely fail or return 400.
       // We will attempt it, and if it fails, we return the error.
       const abusePromise = (async () => {
-        if (!env.ABUSEIPDB_KEY) return { error: "abuseError", message: "API Key missing" };
+        if (!env.c) return { error: "abuseError", message: "API Key missing" };
 
         // Simple check if target looks like an IP (v4 or v6)
         const isIp = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$|^([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}$|^([0-9a-fA-F]{1,4}:){1,7}:|^([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}$/.test(target);
@@ -105,14 +105,27 @@ export default {
         }
       })();
 
+      // 4. Shodan InternetDB Logic
+      const shodanPromise = (async () => {
+        try {
+          const res = await fetch(`https://internetdb.shodan.io/${target}`);
+          if (!res.ok) throw new Error("Shodan API failed");
+          return await res.json();
+        } catch (e) {
+          // Return empty structure on error/not found
+          return { hostnames: [], ports: [], vulns: [], tags: [] };
+        }
+      })();
+
       // Execute all in parallel
-      const [dns, ipInfo, abuse] = await Promise.all([dnsPromise, ipInfoPromise, abusePromise]);
+      const [dns, ipInfo, abuse, shodan] = await Promise.all([dnsPromise, ipInfoPromise, abusePromise, shodanPromise]);
 
       const responseData = {
         target,
         dns,
         ipInfo,
-        abuse
+        abuse,
+        shodan
       };
 
       return new Response(JSON.stringify(responseData), {
@@ -124,4 +137,3 @@ export default {
     return new Response("Not Found", { status: 404, headers: corsHeaders });
   },
 };
-

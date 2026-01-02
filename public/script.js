@@ -4,10 +4,10 @@ let map = L.map('map', {
     attributionControl: false
 }).setView([20, 0], 2);
 
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-    subdomains: 'abcd',
-    maxZoom: 19
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 19,
+    className: 'map-tiles'
 }).addTo(map);
 
 let currentMarker = null;
@@ -65,13 +65,13 @@ function setLoading(isLoading) {
 }
 
 function renderData(data) {
-    renderNetworkInfo(data.ipInfo);
+    renderNetworkInfo(data.ipInfo, data.shodan);
     renderMap(data.ipInfo);
     renderAbuse(data.abuse);
     renderDNS(data.dns);
 }
 
-function renderNetworkInfo(info) {
+function renderNetworkInfo(info, shodan) {
     const container = document.getElementById('networkInfoGrid');
     container.innerHTML = '';
 
@@ -81,25 +81,67 @@ function renderNetworkInfo(info) {
     }
 
     const fields = [
-        { label: 'IP Address', value: info.query, copy: true },
-        { label: 'ISP', value: info.isp },
-        { label: 'Organization', value: info.org },
+        { label: 'Adres IP', value: info.query, copy: true },
+        { label: 'ISP (Dostawca)', value: info.isp },
+        { label: 'Organizacja', value: info.org },
         { label: 'AS', value: info.as },
-        { label: 'Country', value: `${info.country} (${info.countryCode || '-'})` },
-        { label: 'Region/City', value: `${info.regionName}, ${info.city}` },
-        { label: 'Hosting', value: info.hosting ? 'Yes' : 'No' },
-        { label: 'Proxy', value: info.proxy ? 'Yes' : 'No' },
+        { label: 'Kraj', value: `${info.country} (${info.countryCode || '-'})` },
+        { label: 'Miasto', value: `${info.regionName}, ${info.city}` },
+        { label: 'Czy hosting?', value: info.hosting ? 'Tak' : 'Nie' },
+        { label: 'Czy proxy?', value: info.proxy ? 'Tak' : 'Nie' },
     ];
 
     fields.forEach(field => {
         const div = document.createElement('div');
-        div.className = 'flex flex-col border-b border-slate-700/50 pb-2 last:border-0';
+        div.className = 'flex flex-col border-b border-zinc-800 pb-2 last:border-0';
         div.innerHTML = `
-                    <span class="text-slate-500 text-xs uppercase tracking-wider mb-1">${field.label}</span>
-                    <span class="text-slate-200 font-medium break-all">${field.value || 'N/A'}</span>
+                    <span class="text-zinc-500 text-xs uppercase tracking-wider mb-1">${field.label}</span>
+                    <span class="text-zinc-200 font-medium break-all">${field.value || 'N/A'}</span>
                 `;
         container.appendChild(div);
     });
+
+    // Shodan Data Integration
+    if (shodan) {
+        // Hosted Domains
+        if (shodan.hostnames && shodan.hostnames.length > 0) {
+            const div = document.createElement('div');
+            div.className = 'flex flex-col border-b border-zinc-800 pb-2 last:border-0 pt-2';
+            div.innerHTML = `
+                <span class="text-zinc-500 text-xs uppercase tracking-wider mb-2">Hosted Domains</span>
+                <div class="flex flex-wrap gap-2">
+                    ${shodan.hostnames.map(h => `<span class="bg-zinc-800 text-zinc-300 px-2 py-1 rounded text-xs border border-zinc-700 break-all">${h}</span>`).join('')}
+                </div>
+            `;
+            container.appendChild(div);
+        }
+
+        // Open Ports
+        if (shodan.ports && shodan.ports.length > 0) {
+            const div = document.createElement('div');
+            div.className = 'flex flex-col border-b border-zinc-800 pb-2 last:border-0 pt-2';
+            div.innerHTML = `
+                <span class="text-zinc-500 text-xs uppercase tracking-wider mb-2">Open Ports</span>
+                <div class="flex flex-wrap gap-2">
+                    ${shodan.ports.map(p => `<span class="bg-sky-900/30 text-sky-400 px-2 py-1 rounded text-xs border border-sky-800/50 font-mono">${p}</span>`).join('')}
+                </div>
+            `;
+            container.appendChild(div);
+        }
+
+        // Vulnerabilities
+        if (shodan.vulns && shodan.vulns.length > 0) {
+            const div = document.createElement('div');
+            div.className = 'flex flex-col border-b border-zinc-800 pb-2 last:border-0 pt-2';
+            div.innerHTML = `
+                <span class="text-zinc-500 text-xs uppercase tracking-wider mb-2">Vulnerabilities (CVE)</span>
+                <div class="flex flex-wrap gap-2">
+                    ${shodan.vulns.map(v => `<a href="https://nvd.nist.gov/vuln/detail/${v}" target="_blank" class="bg-red-900/20 text-red-400 hover:text-red-300 px-2 py-1 rounded text-xs border border-red-900/50 font-mono transition-colors">${v}</a>`).join('')}
+                </div>
+            `;
+            container.appendChild(div);
+        }
+    }
 }
 
 function renderMap(info) {
@@ -139,7 +181,7 @@ function renderAbuse(abuse) {
     container.innerHTML = '';
 
     if (abuse.error || abuse.abuseSkipped) {
-        container.innerHTML = `<div class="col-span-3 text-slate-500 italic">${abuse.message || 'No abuse data available'}</div>`;
+        container.innerHTML = `<div class="col-span-3 text-zinc-500 italic">${abuse.message || 'Brak dostępnych informacji z AbuseIPDB'}</div>`;
         badge.classList.add('hidden');
         return;
     }
@@ -155,17 +197,17 @@ function renderAbuse(abuse) {
     badge.classList.remove('hidden');
 
     const items = [
-        { label: 'Confidence Score', value: `${score}%` },
-        { label: 'Total Reports', value: abuse.totalReports || 0 },
-        { label: 'Last Reported', value: abuse.lastReportedAt ? new Date(abuse.lastReportedAt).toLocaleDateString() : 'Never' }
+        { label: 'Pewność', value: `${score}%` },
+        { label: 'Łącznie zgłoszeń', value: abuse.totalReports || 0 },
+        { label: 'Ostatnio zgłoszono', value: abuse.lastReportedAt ? new Date(abuse.lastReportedAt).toLocaleDateString() : 'Nigdy' }
     ];
 
     items.forEach(item => {
         const div = document.createElement('div');
-        div.className = 'bg-slate-900/50 rounded-lg p-4 border border-slate-700';
+        div.className = 'bg-zinc-900/50 rounded-lg p-4 border border-zinc-800';
         div.innerHTML = `
-                    <div class="text-2xl font-bold text-slate-100 mb-1">${item.value}</div>
-                    <div class="text-xs text-slate-500 uppercase tracking-wider">${item.label}</div>
+                    <div class="text-2xl font-bold text-zinc-100 mb-1">${item.value}</div>
+                    <div class="text-xs text-zinc-500 uppercase tracking-wider">${item.label}</div>
                 `;
         container.appendChild(div);
     });
@@ -177,7 +219,7 @@ function renderDNS(dns) {
 
     const types = Object.keys(dns);
     if (types.length === 0) {
-        container.innerHTML = '<div class="text-slate-500">No DNS records found.</div>';
+        container.innerHTML = '<div class="text-zinc-500">No DNS records found.</div>';
         return;
     }
 
@@ -186,39 +228,58 @@ function renderDNS(dns) {
         if (!records || records.length === 0) return;
 
         const section = document.createElement('div');
-        section.className = 'bg-slate-800 rounded-xl shadow-lg border border-slate-700 overflow-hidden';
+        section.className = 'bg-zinc-900 rounded-xl shadow-lg border border-zinc-800 overflow-hidden';
 
         let rows = '';
         records.forEach(record => {
             // Highlight SPF/DMARC in TXT
             let content = record.data;
+            let logosHtml = '';
+
             if (type === 'TXT') {
+                const services = detectServices(content);
+                if (services.length > 0) {
+                    logosHtml = `<div class="flex flex-wrap gap-2 mt-2 items-center">
+                        ${services.map(domain => `
+                            <div class="flex items-center gap-1 bg-zinc-800 px-2 py-1 rounded border border-zinc-700" title="${domain}">
+                                <img src="https://www.google.com/s2/favicons?domain=${domain}&sz=32" 
+                                     alt="${domain}" 
+                                     class="w-4 h-4 rounded-sm" />
+                                <span class="text-xs text-zinc-300">${domain}</span>
+                            </div>
+                        `).join('')}
+                    </div>`;
+                }
+
                 if (content.includes('v=spf1')) {
-                    content = `<span class="text-green-400 font-mono">${content}</span>`;
+                    content = `<span class="text-green-400 font-mono break-all">${content}</span>`;
                 } else if (content.includes('v=DMARC1')) {
-                    content = `<span class="text-blue-400 font-mono">${content}</span>`;
+                    content = `<span class="text-blue-400 font-mono break-all">${content}</span>`;
                 } else {
-                    content = `<span class="font-mono text-slate-300">${content}</span>`;
+                    content = `<span class="font-mono text-zinc-300 break-all">${content}</span>`;
                 }
             }
 
             rows += `
-                        <tr class="hover:bg-slate-700/30 transition-colors">
-                            <td class="px-6 py-3 text-sm text-slate-300 font-mono whitespace-nowrap w-32">${record.name}</td>
-                            <td class="px-6 py-3 text-sm text-slate-300 font-mono break-all">${content}</td>
-                            <td class="px-6 py-3 text-sm text-slate-500 text-right w-24">${record.TTL}s</td>
+                        <tr class="hover:bg-zinc-800/50 transition-colors">
+                            <td class="px-6 py-3 text-sm text-zinc-300 font-mono whitespace-nowrap w-32 align-top">${record.name}</td>
+                            <td class="px-6 py-3 text-sm text-zinc-300 font-mono align-top">
+                                <div>${content}</div>
+                                ${logosHtml}
+                            </td>
+                            <td class="px-6 py-3 text-sm text-zinc-500 text-right w-24 align-top">${record.TTL}s</td>
                         </tr>
                     `;
         });
 
         section.innerHTML = `
-                    <div class="px-6 py-3 border-b border-slate-700 bg-slate-800/50 flex items-center gap-2">
-                        <span class="bg-slate-700 text-slate-200 px-2 py-1 rounded text-xs font-bold w-12 text-center">${type}</span>
-                        <span class="text-sm text-slate-400">${records.length} record(s)</span>
+                    <div class="px-6 py-3 border-b border-zinc-800 bg-zinc-900/50 flex items-center gap-2">
+                        <span class="bg-zinc-800 text-zinc-200 px-2 py-1 rounded text-xs font-bold w-12 text-center">${type}</span>
+                        <span class="text-sm text-zinc-400">${records.length} record(s)</span>
                     </div>
                     <div class="overflow-x-auto">
                         <table class="w-full text-left border-collapse">
-                            <tbody class="divide-y divide-slate-700">
+                            <tbody class="divide-y divide-zinc-800">
                                 ${rows}
                             </tbody>
                         </table>
@@ -226,4 +287,80 @@ function renderDNS(dns) {
                 `;
         container.appendChild(section);
     });
+}
+
+function detectServices(txt) {
+    const domains = new Set();
+    const lowerTxt = txt.toLowerCase();
+
+    // 1. Explicit Verification Tokens
+    const verificationPatterns = [
+        { regex: /google-site-verification/, domain: 'google.com' },
+        { regex: /facebook-domain-verification/, domain: 'facebook.com' },
+        { regex: /apple-domain-verification/, domain: 'apple.com' },
+        { regex: /atlassian-domain-verification/, domain: 'atlassian.com' },
+        { regex: /docker-verification/, domain: 'docker.com' },
+        { regex: /dropbox-domain-verification/, domain: 'dropbox.com' },
+        { regex: /github-verification/, domain: 'github.com' },
+        { regex: /gitlab-verification/, domain: 'gitlab.com' },
+        { regex: /heroku-verification/, domain: 'heroku.com' },
+        { regex: /mailgun-domain-verification/, domain: 'mailgun.com' },
+        { regex: /okta-verification/, domain: 'okta.com' },
+        { regex: /stripe-verification/, domain: 'stripe.com' },
+        { regex: /yandex-verification/, domain: 'yandex.com' },
+        { regex: /zoho-verification/, domain: 'zoho.com' },
+        { regex: /_globalsign-domain-verification/, domain: 'globalsign.com' },
+        { regex: /amazon-domain-verification/, domain: 'amazon.com' },
+        { regex: /adobe-idp-site-verification/, domain: 'adobe.com' },
+        { regex: /^ms=/, domain: 'microsoft.com' },
+        { regex: /have-i-been-pwned-verification/, domain: 'haveibeenpwned.com' },
+        { regex: /cisco-ci-domain-verification/, domain: 'cisco.com' },
+    ];
+
+    verificationPatterns.forEach(p => {
+        if (p.regex.test(lowerTxt)) domains.add(p.domain);
+    });
+
+    // 2. Generic Verification Regex
+    // e.g. "some-service-verification=..."
+    // Use lazy matching for the service name to allow the optional -site/-domain part to be consumed by the specific group if present
+    const genericMatch = lowerTxt.match(/([a-z0-9-]+?)(?:-site|-domain)?-verification=/);
+    if (genericMatch) {
+         const name = genericMatch[1];
+         // Basic validation to avoid junk
+         if (name && name.length > 1 && !name.includes('--')) {
+             domains.add(name + '.com');
+         }
+    }
+
+    // 3. SPF Includes
+    if (lowerTxt.includes('v=spf1')) {
+        const includes = lowerTxt.match(/include:([^\s"';]+)/g);
+        if (includes) {
+            includes.forEach(inc => {
+                let d = inc.replace('include:', '');
+                // Map known SPF domains to main service domains
+                if (d.includes('google.com')) d = 'google.com';
+                else if (d.includes('outlook.com') || d.includes('protection.outlook.com')) d = 'microsoft.com';
+                else if (d.includes('amazonses.com')) d = 'amazon.com';
+                else if (d.includes('mailgun.org')) d = 'mailgun.com';
+                else if (d.includes('sendgrid.net')) d = 'sendgrid.com';
+                else if (d.includes('mandrillapp.com') || d.includes('mcsv.net')) d = 'mailchimp.com';
+                else if (d.includes('zendesk.com')) d = 'zendesk.com';
+                else if (d.includes('salesforce.com')) d = 'salesforce.com';
+                else if (d.includes('shopify.com')) d = 'shopify.com';
+                else if (d.includes('atlassian.net')) d = 'atlassian.com';
+                else {
+                    // Try to get root domain
+                    const parts = d.split('.');
+                    if (parts.length > 2) {
+                        d = parts.slice(-2).join('.');
+                    }
+                }
+                domains.add(d);
+            });
+        }
+    }
+
+    return Array.from(domains);
 }
