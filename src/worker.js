@@ -77,7 +77,6 @@ export default {
       // AbuseIPDB requires an IP address. If target is a domain, this will likely fail or return 400.
       // We will attempt it, and if it fails, we return the error.
       const abusePromise = (async () => {
-        if (!env.c) return { error: "abuseError", message: "API Key missing" };
 
         // Simple check if target looks like an IP (v4 or v6)
         const isIp = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$|^([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}$|^([0-9a-fA-F]{1,4}:){1,7}:|^([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}$/.test(target);
