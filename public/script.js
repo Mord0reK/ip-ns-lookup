@@ -35,12 +35,7 @@ async function handleAnalyze() {
     resultsDiv.classList.add('hidden');
 
     try {
-        // Fetch from Worker
-        // Note: In development with `wrangler dev`, the worker is usually at localhost:8787
-        // In production (Pages), it's relative /api/analyze
-        // We'll assume relative path for production readiness.
-        // If running locally, you might need to adjust or proxy.
-        const response = await fetch(`/api/analyze?target=${encodeURIComponent(target)}`);
+        const response = await fetch(`https://api.ip.mordorek.dev/api/analyze?target=${encodeURIComponent(target)}`);
         const data = await response.json();
 
         if (!response.ok) {
