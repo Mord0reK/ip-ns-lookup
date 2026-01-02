@@ -108,7 +108,7 @@ function renderNetworkInfo(info, shodan) {
             const div = document.createElement('div');
             div.className = 'flex flex-col border-b border-zinc-800 pb-2 last:border-0 pt-2';
             div.innerHTML = `
-                <span class="text-zinc-500 text-xs uppercase tracking-wider mb-2">Hosted Domains</span>
+                <span class="text-zinc-500 text-xs uppercase tracking-wider mb-2">Domeny hostowane</span>
                 <div class="flex flex-wrap gap-2">
                     ${shodan.hostnames.map(h => `<span class="bg-zinc-800 text-zinc-300 px-2 py-1 rounded text-xs border border-zinc-700 break-all">${h}</span>`).join('')}
                 </div>
@@ -121,7 +121,7 @@ function renderNetworkInfo(info, shodan) {
             const div = document.createElement('div');
             div.className = 'flex flex-col border-b border-zinc-800 pb-2 last:border-0 pt-2';
             div.innerHTML = `
-                <span class="text-zinc-500 text-xs uppercase tracking-wider mb-2">Open Ports</span>
+                <span class="text-zinc-500 text-xs uppercase tracking-wider mb-2">Otwarte porty</span>
                 <div class="flex flex-wrap gap-2">
                     ${shodan.ports.map(p => `<span class="bg-sky-900/30 text-sky-400 px-2 py-1 rounded text-xs border border-sky-800/50 font-mono">${p}</span>`).join('')}
                 </div>
