@@ -26,8 +26,26 @@ input.addEventListener('keypress', (e) => {
 });
 
 async function handleAnalyze() {
-    const target = input.value.trim();
+    let target = input.value.trim();
     if (!target) return;
+
+    // Parse URL if provided
+    try {
+        // Check if it looks like a URL or has a dot (domain/IP)
+        if (target.includes('://') || target.includes('.')) {
+            let urlToParse = target;
+            if (!target.includes('://')) {
+                urlToParse = 'http://' + target;
+            }
+            const url = new URL(urlToParse);
+            target = url.hostname;
+        }
+    } catch (e) {
+        // If URL parsing fails, keep original target
+    }
+
+    // Update input field with extracted domain/IP
+    input.value = target;
 
     // Reset UI
     setLoading(true);
@@ -40,6 +58,14 @@ async function handleAnalyze() {
 
         if (!response.ok) {
             throw new Error(data.error || 'Nie udało się pobrać danych');
+        }
+
+        // Check if domain exists (no DNS records and ip-api failed)
+        const hasDnsRecords = data.dns ? Object.values(data.dns).some(records => records && records.length > 0) : false;
+        const ipInfoFailed = data.ipInfo && data.ipInfo.status === 'fail';
+
+        if (ipInfoFailed && !hasDnsRecords) {
+            throw new Error('Podana domena nie istnieje lub nie posiada rekordów DNS.');
         }
 
         renderData(data);
