@@ -318,8 +318,8 @@ function renderDNS(dns) {
 
     const types = Object.keys(dns);
 
-    // Sort types: A, AAAA first, then others
-    const priority = ['A', 'AAAA', 'MX', 'NS', 'CNAME', 'TXT', 'SOA'];
+    // Sort types: A, AAAA first, then PTR, then others
+    const priority = ['A', 'AAAA', 'PTR', 'MX', 'NS', 'CNAME', 'TXT', 'SOA'];
     types.sort((a, b) => {
         const idxA = priority.indexOf(a);
         const idxB = priority.indexOf(b);
@@ -369,6 +369,9 @@ function renderDNS(dns) {
                 } else {
                     content = `<span class="font-mono text-zinc-300 break-all text-xs">${content}</span>`;
                 }
+            } else if (type === 'PTR') {
+                // Highlight PTR records (reverse DNS) with a special color
+                content = `<span class="text-purple-400 font-mono break-all text-xs">${content}</span>`;
             } else {
                  content = `<span class="font-mono text-zinc-300 break-all text-xs">${content}</span>`;
             }
