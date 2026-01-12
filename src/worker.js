@@ -1,8 +1,9 @@
 import { getAssetFromKV } from "@cloudflare/kv-asset-handler";
 
 // Constants
-const DNS_TYPES = ["A", "AAAA", "MX", "TXT", "NS", "CNAME", "SOA"];
-const IP_REGEX = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$|^([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}$|^([0-9a-fA-F]{1,4}:){1,7}:|^([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}$/;
+const DNS_TYPES = ["A", "AAAA", "MX", "TXT", "NS", "CNAME", "SOA", "PTR"];
+// Improved IPv4 and IPv6 regex patterns
+const IP_REGEX = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$|^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$|^::(?:[0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4}$|^[0-9a-fA-F]{1,4}::(?:[0-9a-fA-F]{1,4}:){0,5}[0-9a-fA-F]{1,4}$|^(?:[0-9a-fA-F]{1,4}:){2}:(?:[0-9a-fA-F]{1,4}:){0,4}[0-9a-fA-F]{1,4}$|^(?:[0-9a-fA-F]{1,4}:){3}:(?:[0-9a-fA-F]{1,4}:){0,3}[0-9a-fA-F]{1,4}$|^(?:[0-9a-fA-F]{1,4}:){4}:(?:[0-9a-fA-F]{1,4}:){0,2}[0-9a-fA-F]{1,4}$|^(?:[0-9a-fA-F]{1,4}:){5}:(?:[0-9a-fA-F]{1,4}:)?[0-9a-fA-F]{1,4}$|^(?:[0-9a-fA-F]{1,4}:){6}:[0-9a-fA-F]{1,4}$|^::(?:ffff:)?(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$|^(?:[0-9a-fA-F]{1,4}:){6}(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$|^::$|^::1$/;
 
 // Helper function to extract client IP from request headers
 function getClientIP(request) {
@@ -10,6 +11,96 @@ function getClientIP(request) {
          request.headers.get("X-Real-IP") || 
          request.headers.get("X-Forwarded-For")?.split(',')[0] || 
          "Unknown";
+}
+
+// Helper function to convert IPv4 address to reverse DNS format
+function ipv4ToReverseDNS(ip) {
+  return ip.split('.').reverse().join('.') + '.in-addr.arpa';
+}
+
+// Helper function to convert IPv6 address to reverse DNS format
+function ipv6ToReverseDNS(ip) {
+  // Remove colons and expand to full format
+  const expandedIP = ip.includes('::') ? expandIPv6(ip) : ip;
+  // Remove colons and reverse nibbles
+  const nibbles = expandedIP.replace(/:/g, '').split('').reverse().join('.');
+  return nibbles + '.ip6.arpa';
+}
+
+// Helper function to expand compressed IPv6 address
+function expandIPv6(ip) {
+  // Handle special cases
+  if (ip === '::') return '0000:0000:0000:0000:0000:0000:0000:0000';
+  if (ip === '::1') return '0000:0000:0000:0000:0000:0000:0000:0001';
+  
+  // Split on '::'
+  const sides = ip.split('::');
+  if (sides.length === 2) {
+    const left = sides[0] ? sides[0].split(':') : [];
+    const right = sides[1] ? sides[1].split(':') : [];
+    const missing = 8 - left.length - right.length;
+    const middle = Array(missing).fill('0000');
+    const full = [...left, ...middle, ...right];
+    return full.map(h => h.padStart(4, '0')).join(':');
+  }
+  
+  // No compression, just pad each segment
+  return ip.split(':').map(h => h.padStart(4, '0')).join(':');
+}
+
+// Helper function to check if string is IPv4
+function isIPv4(str) {
+  return /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(str);
+}
+
+// Helper function to check if string is IPv6
+function isIPv6(str) {
+  // Simple check for colon presence, full validation would be with full regex
+  return str.includes(':') && IP_REGEX.test(str);
+}
+
+// Helper function to perform DNS lookups with special PTR handling
+async function performDNSLookups(target, dnsTypes) {
+  const results = {};
+  const isIp = IP_REGEX.test(target);
+  
+  await Promise.all(
+    dnsTypes.map(async (type) => {
+      try {
+        let queryName = target;
+        
+        // For PTR records, convert IP to reverse DNS format
+        if (type === "PTR") {
+          if (!isIp) {
+            // PTR only makes sense for IP addresses
+            results[type] = [];
+            return;
+          }
+          
+          if (isIPv4(target)) {
+            queryName = ipv4ToReverseDNS(target);
+          } else if (isIPv6(target)) {
+            queryName = ipv6ToReverseDNS(target);
+          }
+        } else if (isIp && (type === "A" || type === "AAAA" || type === "MX" || type === "CNAME" || type === "NS" || type === "SOA")) {
+          // Skip these record types for IP addresses (they don't make sense)
+          results[type] = [];
+          return;
+        }
+        
+        const res = await fetch(
+          `https://cloudflare-dns.com/dns-query?name=${queryName}&type=${type}`,
+          { headers: { accept: "application/dns-json" } }
+        );
+        if (!res.ok) throw new Error(`DNS ${type} failed`);
+        const data = await res.json();
+        results[type] = data.Answer || [];
+      } catch (e) {
+        results[type] = [];
+      }
+    })
+  );
+  return results;
 }
 
 export default {
@@ -47,25 +138,7 @@ export default {
         const dnsTypes = DNS_TYPES;
 
         // 1. DNS Logic
-        const dnsPromise = (async () => {
-          const results = {};
-          await Promise.all(
-            dnsTypes.map(async (type) => {
-              try {
-                const res = await fetch(
-                  `https://cloudflare-dns.com/dns-query?name=${target}&type=${type}`,
-                  { headers: { accept: "application/dns-json" } }
-                );
-                if (!res.ok) throw new Error(`DNS ${type} failed`);
-                const data = await res.json();
-                results[type] = data.Answer || [];
-              } catch (e) {
-                results[type] = [];
-              }
-            })
-          );
-          return results;
-        })();
+        const dnsPromise = performDNSLookups(target, dnsTypes);
 
         // 2. IP Info Logic
         const ipInfoPromise = (async () => {
@@ -185,25 +258,7 @@ export default {
       const dnsTypes = DNS_TYPES;
 
       // 1. DNS Logic
-      const dnsPromise = (async () => {
-        const results = {};
-        await Promise.all(
-          dnsTypes.map(async (type) => {
-            try {
-              const res = await fetch(
-                `https://cloudflare-dns.com/dns-query?name=${target}&type=${type}`,
-                { headers: { accept: "application/dns-json" } }
-              );
-              if (!res.ok) throw new Error(`DNS ${type} failed`);
-              const data = await res.json();
-              results[type] = data.Answer || [];
-            } catch (e) {
-              results[type] = []; // Return empty on error to not break everything
-            }
-          })
-        );
-        return results;
-      })();
+      const dnsPromise = performDNSLookups(target, dnsTypes);
 
       // 2. IP Info Logic
       // Note: IP-API works for domains too (resolves them), but prompt says "If target is IP address".
