@@ -1,5 +1,17 @@
 import { getAssetFromKV } from "@cloudflare/kv-asset-handler";
 
+// Constants
+const DNS_TYPES = ["A", "AAAA", "MX", "TXT", "NS", "CNAME", "SOA"];
+const IP_REGEX = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$|^([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}$|^([0-9a-fA-F]{1,4}:){1,7}:|^([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}$/;
+
+// Helper function to extract client IP from request headers
+function getClientIP(request) {
+  return request.headers.get("CF-Connecting-IP") || 
+         request.headers.get("X-Real-IP") || 
+         request.headers.get("X-Forwarded-For")?.split(',')[0] || 
+         "Unknown";
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -26,16 +38,13 @@ export default {
     if (url.pathname === "/" && request.method === "GET") {
       // For curl requests, return client IP info directly as JSON
       if (isCurl) {
-        const clientIP = request.headers.get("CF-Connecting-IP") || 
-                        request.headers.get("X-Real-IP") || 
-                        request.headers.get("X-Forwarded-For")?.split(',')[0] || 
-                        "Unknown";
+        const clientIP = getClientIP(request);
         
         // Fetch full analysis for the client's IP
         const target = clientIP;
         
         // Prepare Promises
-        const dnsTypes = ["A", "AAAA", "MX", "TXT", "NS", "CNAME", "SOA"];
+        const dnsTypes = DNS_TYPES;
 
         // 1. DNS Logic
         const dnsPromise = (async () => {
@@ -62,7 +71,7 @@ export default {
         const ipInfoPromise = (async () => {
           try {
             const fields = "status,message,country,regionName,city,lat,lon,isp,org,as,proxy,hosting,query,timezone,currency";
-            const res = await fetch(`http://ip-api.com/json/${target}?fields=${fields}`);
+            const res = await fetch(`https://ip-api.com/json/${target}?fields=${fields}`);
             if (!res.ok) throw new Error("IP-API failed");
             return await res.json();
           } catch (e) {
@@ -72,7 +81,7 @@ export default {
 
         // 3. AbuseIPDB Logic
         const abusePromise = (async () => {
-          const isIp = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$|^([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}$|^([0-9a-fA-F]{1,4}:){1,7}:|^([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}$/.test(target);
+          const isIp = IP_REGEX.test(target);
 
           if (!isIp) {
             return { error: "abuseSkipped", message: "Target is not an IP" };
@@ -144,10 +153,7 @@ export default {
 
     // API endpoint to get client's IP
     if (url.pathname === "/api/myip" && request.method === "GET") {
-      const clientIP = request.headers.get("CF-Connecting-IP") || 
-                      request.headers.get("X-Real-IP") || 
-                      request.headers.get("X-Forwarded-For")?.split(',')[0] || 
-                      "Unknown";
+      const clientIP = getClientIP(request);
       
       return new Response(JSON.stringify({ ip: clientIP }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -176,7 +182,7 @@ export default {
       }
 
       // Prepare Promises
-      const dnsTypes = ["A", "AAAA", "MX", "TXT", "NS", "CNAME", "SOA"];
+      const dnsTypes = DNS_TYPES;
 
       // 1. DNS Logic
       const dnsPromise = (async () => {
@@ -205,7 +211,7 @@ export default {
       const ipInfoPromise = (async () => {
         try {
           const fields = "status,message,country,regionName,city,lat,lon,isp,org,as,proxy,hosting,query,timezone,currency";
-          const res = await fetch(`http://ip-api.com/json/${target}?fields=${fields}`);
+          const res = await fetch(`https://ip-api.com/json/${target}?fields=${fields}`);
           if (!res.ok) throw new Error("IP-API failed");
           return await res.json();
         } catch (e) {
@@ -219,7 +225,7 @@ export default {
       const abusePromise = (async () => {
 
         // Simple check if target looks like an IP (v4 or v6)
-        const isIp = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$|^([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}$|^([0-9a-fA-F]{1,4}:){1,7}:|^([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}$/.test(target);
+        const isIp = IP_REGEX.test(target);
 
         // If it's definitely not an IP, skip AbuseIPDB to save quota/errors
         if (!isIp) {
