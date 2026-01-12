@@ -1,16 +1,25 @@
 // --- Map Initialization ---
-let map = L.map('map', {
-    zoomControl: false,
-    attributionControl: false
-}).setView([20, 0], 2);
+let map, currentMarker;
 
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    maxZoom: 19,
-    className: 'map-tiles'
-}).addTo(map);
+// Initialize map only if Leaflet is available
+try {
+    if (typeof L !== 'undefined') {
+        map = L.map('map', {
+            zoomControl: false,
+            attributionControl: false
+        }).setView([20, 0], 2);
 
-let currentMarker = null;
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19,
+            className: 'map-tiles'
+        }).addTo(map);
+
+        currentMarker = null;
+    }
+} catch (e) {
+    console.warn('Failed to initialize map:', e);
+}
 
 // --- UI Logic ---
 const btn = document.getElementById('analyzeBtn');
@@ -24,6 +33,25 @@ btn.addEventListener('click', handleAnalyze);
 input.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') handleAnalyze();
 });
+
+// Auto-load user's IP on page load
+async function loadUserIP() {
+    try {
+        const response = await fetch('/api/myip');
+        const data = await response.json();
+        if (data.ip && data.ip !== 'Unknown') {
+            input.value = data.ip;
+            // Automatically trigger analysis
+            handleAnalyze();
+        }
+    } catch (err) {
+        console.error('Failed to load user IP:', err);
+        // Silently fail - user can still manually enter IP
+    }
+}
+
+// Load user's IP when page loads
+window.addEventListener('DOMContentLoaded', loadUserIP);
 
 async function handleAnalyze() {
     let target = input.value.trim();
@@ -53,7 +81,7 @@ async function handleAnalyze() {
     resultsDiv.classList.add('hidden');
 
     try {
-        const response = await fetch(`https://api.ip.mordorek.dev/api/analyze?target=${encodeURIComponent(target)}`);
+        const response = await fetch(`/api/analyze?target=${encodeURIComponent(target)}`);
         const data = await response.json();
 
         if (!response.ok) {
@@ -216,6 +244,12 @@ function renderGeoCard(info) {
 
 function renderMap(info) {
     const overlay = document.getElementById('mapOverlay');
+
+    if (!map) {
+        // Map not available, show overlay
+        overlay.classList.remove('hidden');
+        return;
+    }
 
     if (info.status === 'success' && info.lat && info.lon) {
         overlay.classList.add('hidden');

@@ -1,3 +1,17 @@
+import { getAssetFromKV } from "@cloudflare/kv-asset-handler";
+
+// Constants
+const DNS_TYPES = ["A", "AAAA", "MX", "TXT", "NS", "CNAME", "SOA"];
+const IP_REGEX = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$|^([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}$|^([0-9a-fA-F]{1,4}:){1,7}:|^([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}$/;
+
+// Helper function to extract client IP from request headers
+function getClientIP(request) {
+  return request.headers.get("CF-Connecting-IP") || 
+         request.headers.get("X-Real-IP") || 
+         request.headers.get("X-Forwarded-For")?.split(',')[0] || 
+         "Unknown";
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -12,6 +26,138 @@ export default {
     // Handle OPTIONS
     if (request.method === "OPTIONS") {
       return new Response(null, { headers: corsHeaders });
+    }
+
+    // Check if request is from curl or similar CLI tool
+    const userAgent = request.headers.get("User-Agent") || "";
+    const isCurl = userAgent.toLowerCase().includes("curl") || 
+                   userAgent.toLowerCase().includes("wget") || 
+                   userAgent.toLowerCase().includes("httpie");
+
+    // Handle root path
+    if (url.pathname === "/" && request.method === "GET") {
+      // For curl requests, return client IP info directly as JSON
+      if (isCurl) {
+        const clientIP = getClientIP(request);
+        
+        // Fetch full analysis for the client's IP
+        const target = clientIP;
+        
+        // Prepare Promises
+        const dnsTypes = DNS_TYPES;
+
+        // 1. DNS Logic
+        const dnsPromise = (async () => {
+          const results = {};
+          await Promise.all(
+            dnsTypes.map(async (type) => {
+              try {
+                const res = await fetch(
+                  `https://cloudflare-dns.com/dns-query?name=${target}&type=${type}`,
+                  { headers: { accept: "application/dns-json" } }
+                );
+                if (!res.ok) throw new Error(`DNS ${type} failed`);
+                const data = await res.json();
+                results[type] = data.Answer || [];
+              } catch (e) {
+                results[type] = [];
+              }
+            })
+          );
+          return results;
+        })();
+
+        // 2. IP Info Logic
+        const ipInfoPromise = (async () => {
+          try {
+            const fields = "status,message,country,regionName,city,lat,lon,isp,org,as,proxy,hosting,query,timezone,currency";
+            const res = await fetch(`https://ip-api.com/json/${target}?fields=${fields}`);
+            if (!res.ok) throw new Error("IP-API failed");
+            return await res.json();
+          } catch (e) {
+            return { error: "ipInfoError", message: e.message };
+          }
+        })();
+
+        // 3. AbuseIPDB Logic
+        const abusePromise = (async () => {
+          const isIp = IP_REGEX.test(target);
+
+          if (!isIp) {
+            return { error: "abuseSkipped", message: "Target is not an IP" };
+          }
+
+          try {
+            const res = await fetch(`https://api.abuseipdb.com/api/v2/check?ipAddress=${target}`, {
+              headers: {
+                "Key": env.ABUSEIPDB_KEY,
+                "Accept": "application/json"
+              }
+            });
+            if (!res.ok) {
+              const errText = await res.text();
+              throw new Error(`AbuseIPDB failed: ${res.status} ${errText}`);
+            }
+            const data = await res.json();
+            return data.data || {};
+          } catch (e) {
+            return { error: "abuseError", message: e.message };
+          }
+        })();
+
+        // 4. Shodan InternetDB Logic
+        const shodanPromise = (async () => {
+          try {
+            const res = await fetch(`https://internetdb.shodan.io/${target}`);
+            if (!res.ok) throw new Error("Shodan API failed");
+            return await res.json();
+          } catch (e) {
+            return { hostnames: [], ports: [], vulns: [], tags: [] };
+          }
+        })();
+
+        // Execute all in parallel
+        const [dns, ipInfo, abuse, shodan] = await Promise.all([dnsPromise, ipInfoPromise, abusePromise, shodanPromise]);
+
+        const responseData = {
+          target,
+          dns,
+          ipInfo,
+          abuse,
+          shodan
+        };
+
+        return new Response(JSON.stringify(responseData, null, 2), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      
+      // For browser requests, serve the HTML page using Workers Sites/KV
+      try {
+        return await getAssetFromKV(
+          {
+            request,
+            waitUntil(promise) {
+              return ctx.waitUntil(promise);
+            },
+          },
+          {
+            ASSET_NAMESPACE: env.__STATIC_CONTENT,
+            ASSET_MANIFEST: JSON.parse(env.__STATIC_CONTENT_MANIFEST || "{}"),
+          }
+        );
+      } catch (e) {
+        return new Response("Error loading page", { status: 500 });
+      }
+    }
+
+    // API endpoint to get client's IP
+    if (url.pathname === "/api/myip" && request.method === "GET") {
+      const clientIP = getClientIP(request);
+      
+      return new Response(JSON.stringify({ ip: clientIP }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Only allow GET /api/analyze
@@ -36,7 +182,7 @@ export default {
       }
 
       // Prepare Promises
-      const dnsTypes = ["A", "AAAA", "MX", "TXT", "NS", "CNAME", "SOA"];
+      const dnsTypes = DNS_TYPES;
 
       // 1. DNS Logic
       const dnsPromise = (async () => {
@@ -65,7 +211,7 @@ export default {
       const ipInfoPromise = (async () => {
         try {
           const fields = "status,message,country,regionName,city,lat,lon,isp,org,as,proxy,hosting,query,timezone,currency";
-          const res = await fetch(`http://ip-api.com/json/${target}?fields=${fields}`);
+          const res = await fetch(`https://ip-api.com/json/${target}?fields=${fields}`);
           if (!res.ok) throw new Error("IP-API failed");
           return await res.json();
         } catch (e) {
@@ -79,7 +225,7 @@ export default {
       const abusePromise = (async () => {
 
         // Simple check if target looks like an IP (v4 or v6)
-        const isIp = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$|^([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}$|^([0-9a-fA-F]{1,4}:){1,7}:|^([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}$/.test(target);
+        const isIp = IP_REGEX.test(target);
 
         // If it's definitely not an IP, skip AbuseIPDB to save quota/errors
         if (!isIp) {
@@ -130,6 +276,26 @@ export default {
       return new Response(JSON.stringify(responseData), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Serve static assets for other paths (like /script.js) using Workers Sites/KV
+    if (request.method === "GET") {
+      try {
+        return await getAssetFromKV(
+          {
+            request,
+            waitUntil(promise) {
+              return ctx.waitUntil(promise);
+            },
+          },
+          {
+            ASSET_NAMESPACE: env.__STATIC_CONTENT,
+            ASSET_MANIFEST: JSON.parse(env.__STATIC_CONTENT_MANIFEST || "{}"),
+          }
+        );
+      } catch (e) {
+        // Asset not found, fall through to 404
+      }
     }
 
     // 404 for other routes
