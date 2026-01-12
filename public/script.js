@@ -1,16 +1,25 @@
 // --- Map Initialization ---
-let map = L.map('map', {
-    zoomControl: false,
-    attributionControl: false
-}).setView([20, 0], 2);
+let map, currentMarker;
 
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    maxZoom: 19,
-    className: 'map-tiles'
-}).addTo(map);
+// Initialize map only if Leaflet is available
+try {
+    if (typeof L !== 'undefined') {
+        map = L.map('map', {
+            zoomControl: false,
+            attributionControl: false
+        }).setView([20, 0], 2);
 
-let currentMarker = null;
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19,
+            className: 'map-tiles'
+        }).addTo(map);
+
+        currentMarker = null;
+    }
+} catch (e) {
+    console.warn('Failed to initialize map:', e);
+}
 
 // --- UI Logic ---
 const btn = document.getElementById('analyzeBtn');
@@ -235,6 +244,12 @@ function renderGeoCard(info) {
 
 function renderMap(info) {
     const overlay = document.getElementById('mapOverlay');
+
+    if (!map) {
+        // Map not available, show overlay
+        overlay.classList.remove('hidden');
+        return;
+    }
 
     if (info.status === 'success' && info.lat && info.lon) {
         overlay.classList.add('hidden');
