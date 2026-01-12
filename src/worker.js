@@ -1,3 +1,5 @@
+import { getAssetFromKV } from "@cloudflare/kv-asset-handler";
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -121,9 +123,22 @@ export default {
         });
       }
       
-      // For browser requests, serve the HTML page using ASSETS binding
-      if (env.ASSETS) {
-        return env.ASSETS.fetch(request);
+      // For browser requests, serve the HTML page using Workers Sites/KV
+      try {
+        return await getAssetFromKV(
+          {
+            request,
+            waitUntil(promise) {
+              return ctx.waitUntil(promise);
+            },
+          },
+          {
+            ASSET_NAMESPACE: env.__STATIC_CONTENT,
+            ASSET_MANIFEST: JSON.parse(env.__STATIC_CONTENT_MANIFEST || "{}"),
+          }
+        );
+      } catch (e) {
+        return new Response("Error loading page", { status: 500 });
       }
     }
 
@@ -257,9 +272,24 @@ export default {
       });
     }
 
-    // Serve static assets for other paths using ASSETS binding
-    if (request.method === "GET" && env.ASSETS) {
-      return env.ASSETS.fetch(request);
+    // Serve static assets for other paths (like /script.js) using Workers Sites/KV
+    if (request.method === "GET") {
+      try {
+        return await getAssetFromKV(
+          {
+            request,
+            waitUntil(promise) {
+              return ctx.waitUntil(promise);
+            },
+          },
+          {
+            ASSET_NAMESPACE: env.__STATIC_CONTENT,
+            ASSET_MANIFEST: JSON.parse(env.__STATIC_CONTENT_MANIFEST || "{}"),
+          }
+        );
+      } catch (e) {
+        // Asset not found, fall through to 404
+      }
     }
 
     // 404 for other routes
