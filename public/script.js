@@ -25,6 +25,25 @@ input.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') handleAnalyze();
 });
 
+// Auto-load user's IP on page load
+async function loadUserIP() {
+    try {
+        const response = await fetch('/api/myip');
+        const data = await response.json();
+        if (data.ip && data.ip !== 'Unknown') {
+            input.value = data.ip;
+            // Automatically trigger analysis
+            handleAnalyze();
+        }
+    } catch (err) {
+        console.error('Failed to load user IP:', err);
+        // Silently fail - user can still manually enter IP
+    }
+}
+
+// Load user's IP when page loads
+window.addEventListener('DOMContentLoaded', loadUserIP);
+
 async function handleAnalyze() {
     let target = input.value.trim();
     if (!target) return;
@@ -53,7 +72,7 @@ async function handleAnalyze() {
     resultsDiv.classList.add('hidden');
 
     try {
-        const response = await fetch(`https://api.ip.mordorek.dev/api/analyze?target=${encodeURIComponent(target)}`);
+        const response = await fetch(`/api/analyze?target=${encodeURIComponent(target)}`);
         const data = await response.json();
 
         if (!response.ok) {

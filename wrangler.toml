@@ -1,3 +1,8 @@
 name = "ip-api"
 main = "src/worker.js"
 compatibility_date = "2023-10-30"
+
+# Serve static assets from public directory
+[assets]
+directory = "./public"
+binding = "ASSETS"
