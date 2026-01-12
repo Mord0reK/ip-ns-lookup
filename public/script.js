@@ -37,7 +37,7 @@ input.addEventListener('keypress', (e) => {
 // Auto-load user's IP on page load
 async function loadUserIP() {
     try {
-        const response = await fetch('/api/myip');
+        const response = await fetch('https://api.ip.mordorek.dev/api/myip');
         const data = await response.json();
         if (data.ip && data.ip !== 'Unknown') {
             input.value = data.ip;
@@ -81,7 +81,7 @@ async function handleAnalyze() {
     resultsDiv.classList.add('hidden');
 
     try {
-        const response = await fetch(`/api/analyze?target=${encodeURIComponent(target)}`);
+        const response = await fetch(`https://api.ip.mordorek.dev/api/analyze?target=${encodeURIComponent(target)}`);
         const data = await response.json();
 
         if (!response.ok) {
