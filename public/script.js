@@ -28,6 +28,10 @@ const btnLoader = document.getElementById('btnLoader');
 const input = document.getElementById('targetInput');
 const errorMsg = document.getElementById('errorMsg');
 const resultsDiv = document.getElementById('results');
+const historyList = document.getElementById('historyList');
+const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+
+const HISTORY_KEY = 'ip_lookup_history';
 
 btn.addEventListener('click', handleAnalyze);
 input.addEventListener('keypress', (e) => {
@@ -51,7 +55,10 @@ async function loadUserIP() {
 }
 
 // Load user's IP when page loads
-window.addEventListener('DOMContentLoaded', loadUserIP);
+window.addEventListener('DOMContentLoaded', () => {
+    loadUserIP();
+    renderHistory();
+});
 
 async function handleAnalyze() {
     let target = input.value.trim();
@@ -98,6 +105,7 @@ async function handleAnalyze() {
 
         renderData(data);
         resultsDiv.classList.remove('hidden');
+        saveToHistory(target);
 
     } catch (err) {
         errorMsg.textContent = err.message;
@@ -126,6 +134,61 @@ function renderData(data) {
     renderMap(data.ipInfo);
     renderAbuseCard(data.abuse);
     renderDNS(data.dns);
+}
+
+function getHistory() {
+    try {
+        const history = localStorage.getItem(HISTORY_KEY);
+        return history ? JSON.parse(history) : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+function saveToHistory(query) {
+    if (!query) return;
+    let history = getHistory();
+    // Remove if already exists to move it to top
+    history = history.filter(item => item !== query);
+    history.unshift(query);
+    // Keep last 20 searches
+    history = history.slice(0, 20);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+    renderHistory();
+}
+
+function renderHistory() {
+    if (!historyList) return;
+    const history = getHistory();
+
+    if (history.length === 0) {
+        historyList.innerHTML = '<p class="text-zinc-600 text-xs px-2 italic">Brak historii...</p>';
+        return;
+    }
+
+    historyList.innerHTML = history.map(item => `
+        <button class="history-item w-full text-left px-2 py-1.5 rounded text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 transition-all flex items-center justify-between group" data-query="${item}">
+            <span class="truncate">${item}</span>
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            </svg>
+        </button>
+    `).join('');
+
+    // Add event listeners to history items
+    document.querySelectorAll('.history-item').forEach(btn => {
+        btn.addEventListener('click', () => {
+            input.value = btn.dataset.query;
+            handleAnalyze();
+        });
+    });
+}
+
+if (clearHistoryBtn) {
+    clearHistoryBtn.addEventListener('click', () => {
+        localStorage.removeItem(HISTORY_KEY);
+        renderHistory();
+    });
 }
 
 function renderNetworkCard(info) {

@@ -55,7 +55,7 @@
 
             <div class="w-full max-w-2xl flex items-center gap-2">
                 <div class="relative flex-1">
-                    <input type="text" id="targetInput" placeholder="Podaj adres ip lub domenę (np., google.com)"
+                    <input type="text" id="targetInput" placeholder="Podaj adres ip lub domenę (np., google.com)" aria-label="Adres IP lub domena"
                         class="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-4 pr-4 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 text-zinc-100 placeholder-zinc-500 transition-all text-sm">
                 </div>
                 <button id="analyzeBtn" class="bg-sky-600 hover:bg-sky-500 text-white font-semibold py-2 px-6 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-sm whitespace-nowrap">
@@ -69,96 +69,108 @@
         </div>
     </nav>
 
-    <main class="container mx-auto px-4 py-6 space-y-6 max-w-[1600px]">
-
-        <p id="errorMsg" class="text-red-400 text-center text-sm hidden bg-red-500/10 border border-red-500/20 p-3 rounded-lg"></p>
-
-        <!-- Results Container (Hidden initially) -->
-        <div id="results" class="hidden space-y-6">
-
-            <!-- Top Row: Tech & Security -->
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-                <!-- Card 1: Network & Infrastructure -->
-                <div class="bg-zinc-900/80 border border-zinc-800 rounded-3xl p-6 flex flex-col gap-6 shadow-xl backdrop-blur-sm">
-                    <div class="flex items-center gap-3 border-b border-zinc-800 pb-4">
-                        <div class="p-2 bg-sky-500/10 rounded-lg">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-sky-500">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 0 1-3-3m3 3a3 3 0 1 0 0 6h13.5a3 3 0 1 0 0-6m-16.5-3a3 3 0 0 1 3-3h13.5a3 3 0 0 1 3 3m-19.5 0a4.5 4.5 0 0 1 .9-2.7L5.737 5.1a3.375 3.375 0 0 1 2.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 0 1 .9 2.7m0 0a3 3 0 0 1-3 3m0 3h.008v.008h-.008v-.008Zm0-6h.008v.008h-.008v-.008Zm-3 6h.008v.008h-.008v-.008Zm0-6h.008v.008h-.008v-.008Z" />
-                            </svg>
-                        </div>
-                        <h2 class="text-lg font-semibold text-zinc-100">Sieć i Infrastruktura</h2>
-                    </div>
-                    <div id="networkInfoGrid" class="space-y-3">
-                        <!-- Populated by JS -->
-                    </div>
-                    <div id="infrastructureGrid" class="space-y-3 pt-3 border-t border-zinc-800/50">
-                        <!-- Populated by JS -->
-                    </div>
-                </div>
-
-                <!-- Card 2: Security -->
-                <div class="bg-zinc-900/80 border border-zinc-800 rounded-3xl p-6 flex flex-col gap-6 shadow-xl backdrop-blur-sm relative overflow-hidden">
-                    <div class="absolute top-0 right-0 w-32 h-32 bg-red-500/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
-                    <div class="flex items-center gap-3 border-b border-zinc-800 pb-4 relative z-10">
-                        <div class="p-2 bg-red-500/10 rounded-lg">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-red-500">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 0 1-1.043 3.296 3.745 3.745 0 0 1-3.296 1.043A3.745 3.745 0 0 1 12 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 0 1-3.296-1.043 3.745 3.745 0 0 1-1.043-3.296A3.745 3.745 0 0 1 3 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 0 1 1.043-3.296 3.746 3.746 0 0 1 3.296-1.043A3.746 3.746 0 0 1 12 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 0 1 3.296 1.043 3.746 3.746 0 0 1 1.043 3.296A3.745 3.745 0 0 1 21 12Z" />
-                            </svg>
-                        </div>
-                        <h2 class="text-lg font-semibold text-zinc-100">Bezpieczeństwo</h2>
-                    </div>
-                    <div id="abuseCardContent" class="relative z-10">
-                        <!-- Populated by JS -->
-                    </div>
-                    <div id="vulnsContainer" class="relative z-10 pt-3 border-t border-zinc-800/50">
-                        <!-- Populated by JS -->
-                    </div>
-                </div>
+    <div class="flex flex-col lg:flex-row min-h-[calc(100vh-64px)]">
+        <!-- Sidebar: History -->
+        <aside id="historySidebar" class="w-full lg:w-80 border-b lg:border-b-0 lg:border-r border-zinc-800 bg-zinc-900/20 backdrop-blur-sm p-4 overflow-y-auto hidden lg:block">
+            <div class="flex items-center justify-between mb-4 px-2">
+                <h2 class="text-xs font-semibold text-zinc-500 uppercase tracking-widest">Historia</h2>
+                <button id="clearHistoryBtn" class="text-[10px] text-zinc-600 hover:text-red-400 transition-colors uppercase tracking-tighter">Wyczyść</button>
             </div>
+            <div id="historyList" class="space-y-1">
+                <p class="text-zinc-600 text-xs px-2 italic">Brak historii...</p>
+            </div>
+        </aside>
 
-            <!-- Second Row: Geo & Map -->
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <main class="flex-1 container mx-auto px-4 py-6 space-y-6 max-w-[1600px]">
 
-                <!-- Geo Details (Span 2) -->
-                <div class="lg:col-span-2 bg-zinc-900/80 border border-zinc-800 rounded-3xl p-6 shadow-xl backdrop-blur-sm">
-                    <div class="flex items-center gap-3 mb-6 border-b border-zinc-800 pb-4">
-                        <div class="p-2 bg-emerald-500/10 rounded-lg">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-emerald-500">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0 1 12 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 0 1 3 12c0-1.605.42-3.113 1.157-4.418" />
-                            </svg>
+            <p id="errorMsg" class="text-red-400 text-center text-sm hidden bg-red-500/10 border border-red-500/20 p-3 rounded-lg"></p>
+
+            <!-- Results Container (Hidden initially) -->
+            <div id="results" class="hidden space-y-6">
+
+                <!-- Top Row: Tech & Security -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                    <!-- Card 1: Network & Infrastructure -->
+                    <div class="bg-zinc-900/80 border border-zinc-800 rounded-3xl p-6 flex flex-col gap-6 shadow-xl backdrop-blur-sm">
+                        <div class="flex items-center gap-3 border-b border-zinc-800 pb-4">
+                            <div class="p-2 bg-sky-500/10 rounded-lg">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-sky-500">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 0 1-3-3m3 3a3 3 0 1 0 0 6h13.5a3 3 0 1 0 0-6m-16.5-3a3 3 0 0 1 3-3h13.5a3 3 0 0 1 3 3m-19.5 0a4.5 4.5 0 0 1 .9-2.7L5.737 5.1a3.375 3.375 0 0 1 2.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 0 1 .9 2.7m0 0a3 3 0 0 1-3 3m0 3h.008v.008h-.008v-.008Zm0-6h.008v.008h-.008v-.008Zm-3 6h.008v.008h-.008v-.008Zm0-6h.008v.008h-.008v-.008Z" />
+                                </svg>
+                            </div>
+                            <h2 class="text-lg font-semibold text-zinc-100">Sieć i Infrastruktura</h2>
                         </div>
-                        <h2 class="text-lg font-semibold text-zinc-100">Szczegóły Geograficzne</h2>
+                        <div id="networkInfoGrid" class="space-y-3">
+                            <!-- Populated by JS -->
+                        </div>
+                        <div id="infrastructureGrid" class="space-y-3 pt-3 border-t border-zinc-800/50">
+                            <!-- Populated by JS -->
+                        </div>
                     </div>
-                    <div id="geoDetailsGrid" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-                        <!-- Populated by JS -->
+
+                    <!-- Card 2: Security -->
+                    <div class="bg-zinc-900/80 border border-zinc-800 rounded-3xl p-6 flex flex-col gap-6 shadow-xl backdrop-blur-sm relative overflow-hidden">
+                        <div class="absolute top-0 right-0 w-32 h-32 bg-red-500/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+                        <div class="flex items-center gap-3 border-b border-zinc-800 pb-4 relative z-10">
+                            <div class="p-2 bg-red-500/10 rounded-lg">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-red-500">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 0 1-1.043 3.296 3.745 3.745 0 0 1-3.296 1.043A3.745 3.745 0 0 1 12 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 0 1-3.296-1.043 3.745 3.745 0 0 1-1.043-3.296A3.745 3.745 0 0 1 3 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 0 1 1.043-3.296 3.746 3.746 0 0 1 3.296-1.043A3.746 3.746 0 0 1 12 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 0 1 3.296 1.043 3.746 3.746 0 0 1 1.043 3.296A3.745 3.745 0 0 1 21 12Z" />
+                                </svg>
+                            </div>
+                            <h2 class="text-lg font-semibold text-zinc-100">Bezpieczeństwo</h2>
+                        </div>
+                        <div id="abuseCardContent" class="relative z-10">
+                            <!-- Populated by JS -->
+                        </div>
+                        <div id="vulnsContainer" class="relative z-10 pt-3 border-t border-zinc-800/50">
+                            <!-- Populated by JS -->
+                        </div>
                     </div>
                 </div>
 
-                <!-- Map (Span 1) -->
-                <div class="lg:col-span-1 bg-zinc-900/80 border border-zinc-800 rounded-3xl overflow-hidden relative h-64 lg:h-auto min-h-[250px] shadow-xl">
-                    <div id="map" class="absolute inset-0 z-0 h-full w-full"></div>
+                <!-- Second Row: Geo & Map -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-                    <!-- Live Location Badge -->
-                    <div class="absolute top-4 left-4 z-10 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-xl">
-                        <span class="text-xs font-medium text-white flex items-center gap-2">
-                            <span class="relative flex h-2 w-2">
-                              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
-                              <span class="relative inline-flex rounded-full h-2 w-2 bg-sky-500"></span>
+                    <!-- Geo Details (Span 2) -->
+                    <div class="lg:col-span-2 bg-zinc-900/80 border border-zinc-800 rounded-3xl p-6 shadow-xl backdrop-blur-sm">
+                        <div class="flex items-center gap-3 mb-6 border-b border-zinc-800 pb-4">
+                            <div class="p-2 bg-emerald-500/10 rounded-lg">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-emerald-500">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0 1 12 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 0 1 3 12c0-1.605.42-3.113 1.157-4.418" />
+                                </svg>
+                            </div>
+                            <h2 class="text-lg font-semibold text-zinc-100">Szczegóły Geograficzne</h2>
+                        </div>
+                        <div id="geoDetailsGrid" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+
+                    <!-- Map (Span 1) -->
+                    <div class="lg:col-span-1 bg-zinc-900/80 border border-zinc-800 rounded-3xl overflow-hidden relative h-64 lg:h-auto min-h-[250px] shadow-xl">
+                        <div id="map" class="absolute inset-0 z-0 h-full w-full"></div>
+
+                        <!-- Live Location Badge -->
+                        <div class="absolute top-4 left-4 z-10 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-xl">
+                            <span class="text-xs font-medium text-white flex items-center gap-2">
+                                <span class="relative flex h-2 w-2">
+                                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
+                                  <span class="relative inline-flex rounded-full h-2 w-2 bg-sky-500"></span>
+                                </span>
+                                Live
                             </span>
-                            Live
-                        </span>
-                    </div>
+                        </div>
 
-                    <div id="mapOverlay" class="absolute inset-0 z-20 bg-zinc-900/80 flex items-center justify-center hidden">
-                        <span class="text-zinc-500">Brak lokalizacji</span>
+                        <div id="mapOverlay" class="absolute inset-0 z-20 bg-zinc-900/80 flex items-center justify-center hidden">
+                            <span class="text-zinc-500">Brak lokalizacji</span>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- DNS Section -->
-            <div class="bg-zinc-900/80 border border-zinc-800 rounded-3xl p-6 shadow-xl backdrop-blur-sm">
-                 <div class="flex items-center justify-between mb-6">
+                <!-- DNS Section -->
+                <div class="bg-zinc-900/80 border border-zinc-800 rounded-3xl p-6 shadow-xl backdrop-blur-sm">
+                     <div class="flex items-center justify-between mb-6">
                     <h2 class="text-xl font-bold text-zinc-200">Rekordy DNS</h2>
                     <span class="text-xs text-zinc-500 bg-zinc-800 px-2 py-1 rounded">Live Lookup</span>
                  </div>
@@ -169,6 +181,7 @@
 
         </div>
     </main>
+    </div>
 
     <footer class="border-t border-zinc-800 mt-12 py-8 text-center text-zinc-500 text-sm">
         <p>Powered by Cloudflare Workers, IP-API & AbuseIPDB.</p>

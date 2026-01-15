@@ -246,7 +246,7 @@ export default {
 
       // Basic validation (simple regex for IP or Domain)
       // This is a loose check to prevent obvious garbage
-      const isIpOrDomain = /^[a-zA-Z0-9.-]+$/.test(target);
+      const isIpOrDomain = /^[a-zA-Z0-9.:-]+$/.test(target);
       if (!isIpOrDomain) {
         return new Response(JSON.stringify({ error: "Invalid target format" }), {
           status: 400,
