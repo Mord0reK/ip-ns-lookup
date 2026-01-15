@@ -86,6 +86,7 @@ async function handleAnalyze() {
     setLoading(true);
     errorMsg.classList.add('hidden');
     resultsDiv.classList.add('hidden');
+    document.getElementById('asnSection').classList.add('hidden');
 
     try {
         const response = await fetch(`https://api.ip.mordorek.dev/api/analyze?target=${encodeURIComponent(target)}`);
@@ -203,7 +204,7 @@ function renderNetworkCard(info) {
     const fields = [
         { label: 'Adres IP', value: info.query, copy: true },
         { label: 'Dostawca (ISP)', value: info.isp },
-        { label: 'ASN', value: info.as },
+        { label: 'ASN', value: info.as, isASN: true },
         { label: 'Organizacja', value: info.org },
         { label: 'Hosting', value: info.hosting ? 'Tak' : 'Nie' },
         { label: 'Proxy/VPN', value: info.proxy ? 'Tak' : 'Nie' },
@@ -212,11 +213,44 @@ function renderNetworkCard(info) {
     fields.forEach(field => {
         const div = document.createElement('div');
         div.className = 'flex justify-between items-center border-b border-zinc-800 pb-2 last:border-0';
+
+        let valueContent = `<span class="text-zinc-200 font-medium text-sm text-right truncate max-w-[60%]">${field.value || 'N/A'}</span>`;
+
+        if (field.isASN && field.value) {
+            const asnMatch = field.value.match(/AS(\d+)/i);
+            if (asnMatch) {
+                const asnNumber = asnMatch[1];
+                valueContent = `
+                    <button onclick="handleASNClick('${asnNumber}')" class="text-sky-400 hover:text-sky-300 font-medium text-sm text-right truncate max-w-[60%] transition-colors flex items-center gap-1 ml-auto">
+                        ${field.value}
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                        </svg>
+                    </button>
+                `;
+            }
+        } else if (field.copy && field.value) {
+             valueContent = `
+                <button onclick="copyToClipboard('${field.value}')" class="text-zinc-200 hover:text-sky-400 font-medium text-sm text-right truncate max-w-[60%] transition-colors flex items-center gap-1 ml-auto group">
+                    ${field.value}
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
+                    </svg>
+                </button>
+            `;
+        }
+
         div.innerHTML = `
             <span class="text-zinc-500 text-xs uppercase tracking-wider">${field.label}</span>
-            <span class="text-zinc-200 font-medium text-sm text-right truncate max-w-[60%]">${field.value || 'N/A'}</span>
+            ${valueContent}
         `;
         container.appendChild(div);
+    });
+}
+
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+        // Optional: show a toast or feedback
     });
 }
 
@@ -541,3 +575,97 @@ function detectServices(txt) {
 
     return Array.from(domains);
 }
+
+// --- ASN Logic ---
+async function handleASNClick(asn) {
+    const section = document.getElementById('asnSection');
+    const content = document.getElementById('asnContent');
+
+    // Show section and show loading state
+    section.classList.remove('hidden');
+    section.scrollIntoView({ behavior: 'smooth' });
+    content.innerHTML = `
+        <div class="col-span-full flex flex-col items-center py-12 text-zinc-500">
+            <svg class="animate-spin h-8 w-8 mb-4 text-purple-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p>Pobieranie szczegółów ASN ${asn}...</p>
+        </div>
+    `;
+
+    try {
+        const response = await fetch(`https://api.ip.mordorek.dev/api/asn?asn=${asn}`);
+        if (!response.ok) throw new Error('Nie udało się pobrać danych o ASN');
+        const data = await response.json();
+        renderASNInfo(data);
+    } catch (err) {
+        content.innerHTML = `
+            <div class="col-span-full p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-center">
+                Błąd: ${err.message}
+            </div>
+        `;
+    }
+}
+
+function renderASNInfo(data) {
+    const content = document.getElementById('asnContent');
+
+    // Group basic info
+    const fields = [
+        { label: 'Numer ASN', value: `AS${data.asn}` },
+        { label: 'Nazwa', value: data.name },
+        { label: 'Pełna nazwa', value: data.description_short },
+        { label: 'Kraj', value: data.country_code },
+        { label: 'Strona WWW', value: data.website, isLink: true },
+        { label: 'Data rejestracji', value: data.iana_assignment?.date_assigned },
+        { label: 'Status', value: data.iana_assignment?.registration_status },
+        { label: 'Serwer WHOIS', value: data.iana_assignment?.whois_server },
+    ];
+
+    let html = `
+        <div class="bg-zinc-800/30 rounded-2xl p-5 border border-zinc-700/30 space-y-3">
+             <h3 class="text-zinc-400 text-xs font-bold uppercase tracking-wider mb-4">Podstawowe informacje</h3>
+             ${fields.map(f => `
+                <div class="flex justify-between items-center border-b border-zinc-800/50 pb-2 last:border-0 last:pb-0">
+                    <span class="text-zinc-500 text-xs">${f.label}</span>
+                    ${f.isLink && f.value ? 
+                        `<a href="${f.value}" target="_blank" class="text-purple-400 hover:underline text-sm truncate max-w-[60%]">${f.value}</a>` :
+                        `<span class="text-zinc-200 font-medium text-sm truncate max-w-[60%]">${f.value || 'N/A'}</span>`
+                    }
+                </div>
+             `).join('')}
+        </div>
+    `;
+
+    // Add address info if available
+    if (data.owner_address && data.owner_address.length > 0) {
+        html += `
+            <div class="bg-zinc-800/30 rounded-2xl p-5 border border-zinc-700/30">
+                <h3 class="text-zinc-400 text-xs font-bold uppercase tracking-wider mb-4">Adres rejestrowy</h3>
+                <div class="text-zinc-300 text-sm space-y-1">
+                    ${data.owner_address.map(line => `<p>${line}</p>`).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    // Add summary info
+    html += `
+        <div class="bg-zinc-800/30 rounded-2xl p-5 border border-zinc-700/30 flex flex-col justify-center items-center text-center">
+             <div class="w-16 h-16 bg-purple-500/10 rounded-full flex items-center justify-center mb-4 text-purple-500">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0 1 12 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 0 1 3 12c0-1.605.42-3.113 1.157-4.418" />
+                </svg>
+             </div>
+             <div class="text-zinc-200 font-bold text-xl mb-1">${data.name}</div>
+             <div class="text-zinc-500 text-xs uppercase tracking-widest">${data.country_code} &bull; ${data.iana_assignment?.registration_status}</div>
+             <a href="https://bgpview.io/asn/${data.asn}" target="_blank" class="mt-6 text-xs text-purple-400 border border-purple-500/30 px-4 py-2 rounded-full hover:bg-purple-500/10 transition-colors">
+                Zobacz pełny raport w BGPView
+             </a>
+        </div>
+    `;
+
+    content.innerHTML = html;
+}
+

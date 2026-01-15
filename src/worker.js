@@ -233,6 +233,34 @@ export default {
       });
     }
 
+    // API endpoint to get ASN info
+    if (url.pathname === "/api/asn" && request.method === "GET") {
+      const asn = url.searchParams.get("asn");
+      if (!asn) {
+        return new Response(JSON.stringify({ error: "asn required" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Extract only digits from ASN string (e.g., "AS15169" -> "15169")
+      const asnNumber = asn.replace(/\D/g, "");
+
+      try {
+        const res = await fetch(`https://api.bgpview.io/asn/${asnNumber}`);
+        if (!res.ok) throw new Error("BGPView API failed");
+        const data = await res.json();
+        return new Response(JSON.stringify(data.data), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: "asnInfoError", message: e.message }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
     // Only allow GET /api/analyze
     if (url.pathname === "/api/analyze" && request.method === "GET") {
       const target = url.searchParams.get("target");
