@@ -130,77 +130,26 @@ export default {
       // For curl requests, return client IP info directly as JSON
       if (isCurl) {
         const clientIP = getClientIP(request);
-        
-        // Fetch full analysis for the client's IP
         const target = clientIP;
         
-        // Prepare Promises
-        const dnsTypes = DNS_TYPES;
-
         // 1. DNS Logic
-        const dnsPromise = performDNSLookups(target, dnsTypes);
+        const dnsPromise = performDNSLookups(target, DNS_TYPES);
 
-        // 2. IP Info Logic
-        const ipInfoPromise = (async () => {
+        // 2. ipapi.is Logic
+        const ipapiPromise = (async () => {
           try {
-            const fields = "status,message,country,regionName,city,lat,lon,isp,org,as,proxy,hosting,query,timezone,currency";
-            const res = await fetch(`http://ip-api.com/json/${target}?fields=${fields}`);
-            if (!res.ok) throw new Error("IP-API failed");
+            const res = await fetch(`https://api.ipapi.is/?q=${target}`);
+            if (!res.ok) throw new Error("ipapi.is failed");
             return await res.json();
           } catch (e) {
-            return { error: "ipInfoError", message: e.message };
+            return { error: "ipapiError", message: e.message };
           }
         })();
 
-        // 3. AbuseIPDB Logic
-        const abusePromise = (async () => {
-          const isIp = IP_REGEX.test(target);
+        // Execute parallel
+        const [dns, ipapi] = await Promise.all([dnsPromise, ipapiPromise]);
 
-          if (!isIp) {
-            return { error: "abuseSkipped", message: "Target is not an IP" };
-          }
-
-          try {
-            const res = await fetch(`https://api.abuseipdb.com/api/v2/check?ipAddress=${target}`, {
-              headers: {
-                "Key": env.ABUSEIPDB_KEY,
-                "Accept": "application/json"
-              }
-            });
-            if (!res.ok) {
-              const errText = await res.text();
-              throw new Error(`AbuseIPDB failed: ${res.status} ${errText}`);
-            }
-            const data = await res.json();
-            return data.data || {};
-          } catch (e) {
-            return { error: "abuseError", message: e.message };
-          }
-        })();
-
-        // 4. Shodan InternetDB Logic
-        const shodanPromise = (async () => {
-          try {
-            const res = await fetch(`https://internetdb.shodan.io/${target}`);
-            if (!res.ok) throw new Error("Shodan API failed");
-            return await res.json();
-          } catch (e) {
-            return { hostnames: [], ports: [], vulns: [], tags: [] };
-          }
-        })();
-
-        // Execute all in parallel
-        const [dns, ipInfo, abuse, shodan] = await Promise.all([dnsPromise, ipInfoPromise, abusePromise, shodanPromise]);
-
-        const responseData = {
-          target,
-          dns,
-          ipInfo,
-          abuse,
-          shodan
-        };
-
-        return new Response(JSON.stringify(responseData, null, 2), {
+        return new Response(JSON.stringify({ target, dns, ipapi }, null, 2), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
@@ -243,14 +192,13 @@ export default {
         });
       }
 
-      // Extract only digits from ASN string (e.g., "AS15169" -> "15169")
       const asnNumber = asn.replace(/\D/g, "");
 
       try {
-        const res = await fetch(`https://api.bgpview.io/asn/${asnNumber}`);
-        if (!res.ok) throw new Error("BGPView API failed");
+        const res = await fetch(`https://api.ipapi.is/?whois=AS${asnNumber}`);
+        if (!res.ok) throw new Error("ipapi.is API failed");
         const data = await res.json();
-        return new Response(JSON.stringify(data.data), {
+        return new Response(JSON.stringify(data), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       } catch (e) {
@@ -272,8 +220,7 @@ export default {
         });
       }
 
-      // Basic validation (simple regex for IP or Domain)
-      // This is a loose check to prevent obvious garbage
+      // Basic validation
       const isIpOrDomain = /^[a-zA-Z0-9.:-]+$/.test(target);
       if (!isIpOrDomain) {
         return new Response(JSON.stringify({ error: "Invalid target format" }), {
@@ -282,81 +229,23 @@ export default {
         });
       }
 
-      // Prepare Promises
-      const dnsTypes = DNS_TYPES;
-
       // 1. DNS Logic
-      const dnsPromise = performDNSLookups(target, dnsTypes);
+      const dnsPromise = performDNSLookups(target, DNS_TYPES);
 
-      // 2. IP Info Logic
-      // Note: IP-API works for domains too (resolves them), but prompt says "If target is IP address".
-      // We will try it for both, as it provides useful info for domains too (hosting info).
-      const ipInfoPromise = (async () => {
+      // 2. ipapi.is Logic
+      const ipapiPromise = (async () => {
         try {
-          const fields = "status,message,country,regionName,city,lat,lon,isp,org,as,proxy,hosting,query,timezone,currency";
-          const res = await fetch(`http://ip-api.com/json/${target}?fields=${fields}`);
-          if (!res.ok) throw new Error("IP-API failed");
+          const res = await fetch(`https://api.ipapi.is/?q=${target}`);
+          if (!res.ok) throw new Error("ipapi.is failed");
           return await res.json();
         } catch (e) {
-          return { error: "ipInfoError", message: e.message };
+          return { error: "ipapiError", message: e.message };
         }
       })();
 
-      // 3. AbuseIPDB Logic
-      // AbuseIPDB requires an IP address. If target is a domain, this will likely fail or return 400.
-      // We will attempt it, and if it fails, we return the error.
-      const abusePromise = (async () => {
+      const [dns, ipapi] = await Promise.all([dnsPromise, ipapiPromise]);
 
-        // Simple check if target looks like an IP (v4 or v6)
-        const isIp = IP_REGEX.test(target);
-
-        // If it's definitely not an IP, skip AbuseIPDB to save quota/errors
-        if (!isIp) {
-             return { error: "abuseSkipped", message: "Target is not an IP" };
-        }
-
-        try {
-          const res = await fetch(`https://api.abuseipdb.com/api/v2/check?ipAddress=${target}`, {
-            headers: {
-              "Key": env.ABUSEIPDB_KEY,
-              "Accept": "application/json"
-            }
-          });
-          if (!res.ok) {
-             const errText = await res.text();
-             throw new Error(`AbuseIPDB failed: ${res.status} ${errText}`);
-          }
-          const data = await res.json();
-          return data.data || {};
-        } catch (e) {
-          return { error: "abuseError", message: e.message };
-        }
-      })();
-
-      // 4. Shodan InternetDB Logic
-      const shodanPromise = (async () => {
-        try {
-          const res = await fetch(`https://internetdb.shodan.io/${target}`);
-          if (!res.ok) throw new Error("Shodan API failed");
-          return await res.json();
-        } catch (e) {
-          // Return empty structure on error/not found
-          return { hostnames: [], ports: [], vulns: [], tags: [] };
-        }
-      })();
-
-      // Execute all in parallel
-      const [dns, ipInfo, abuse, shodan] = await Promise.all([dnsPromise, ipInfoPromise, abusePromise, shodanPromise]);
-
-      const responseData = {
-        target,
-        dns,
-        ipInfo,
-        abuse,
-        shodan
-      };
-
-      return new Response(JSON.stringify(responseData), {
+      return new Response(JSON.stringify({ target, dns, ipapi }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
