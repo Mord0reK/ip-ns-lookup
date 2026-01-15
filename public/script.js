@@ -318,13 +318,34 @@ function renderGeoCard(ipapi) {
         return;
     }
 
+    // Helper to format local time
+    const formatLocalTime = (timeString) => {
+        if (!timeString) return 'N/A';
+        try {
+            // ipapi.is format is usually YYYY-MM-DD HH:MM
+            // We can try to make it more readable using Intl
+            const date = new Date(timeString.replace(' ', 'T'));
+            if (isNaN(date.getTime())) return timeString; // Fallback to raw string
+
+            return new Intl.DateTimeFormat('pl-PL', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            }).format(date);
+        } catch (e) {
+            return timeString;
+        }
+    };
+
     const fields = [
         { label: 'Kraj', value: `${ipapi.location.country} (${ipapi.location.country_code})` },
         { label: 'Region/Stan', value: ipapi.location.state },
         { label: 'Miasto', value: ipapi.location.city },
         { label: 'Kod pocztowy', value: ipapi.location.zip },
         { label: 'Strefa czasowa', value: ipapi.location.timezone },
-        { label: 'Lokalny czas', value: ipapi.location.local_time },
+        { label: 'Lokalny czas', value: formatLocalTime(ipapi.location.local_time) },
         { label: 'Współrzędne', value: `${ipapi.location.latitude}, ${ipapi.location.longitude}` },
         { label: 'Waluta', value: ipapi.location.currency_code },
         { label: 'Numer kierunkowy', value: `+${ipapi.location.calling_code}` },
@@ -507,3 +528,43 @@ function renderASNInfo(data) {
     content.innerHTML = html;
 }
 
+function renderDNS(dns) {
+    const container = document.getElementById('dnsContainer');
+    if (!dns || Object.keys(dns).length === 0) {
+        container.innerHTML = '<div class="col-span-full text-zinc-500 text-center py-4">Brak rekordów DNS</div>';
+        return;
+    }
+
+    let html = '';
+    const sortedTypes = Object.keys(dns).sort();
+
+    for (const type of sortedTypes) {
+        const records = dns[type];
+        if (records && records.length > 0) {
+            html += `
+                <div class="bg-zinc-800/30 rounded-2xl p-4 border border-zinc-700/30">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="px-2 py-0.5 bg-sky-500/10 text-sky-400 text-[10px] font-bold rounded uppercase tracking-wider">${type}</span>
+                        <span class="text-[10px] text-zinc-500">${records.length} ${records.length === 1 ? 'rekord' : 'rekordy'}</span>
+                    </div>
+                    <div class="space-y-2">
+                        ${records.map(r => `
+                            <div class="group">
+                                <div class="text-zinc-200 text-sm font-mono break-all bg-black/20 p-2 rounded border border-zinc-800/50 group-hover:border-zinc-700/50 transition-colors">
+                                    ${r.data}
+                                </div>
+                                ${r.name !== r.data && r.name !== (r.data + '.') ? `<div class="text-[10px] text-zinc-600 mt-0.5 ml-1 truncate">Name: ${r.name}</div>` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+    }
+
+    if (!html) {
+        container.innerHTML = '<div class="col-span-full text-zinc-500 text-center py-4">Brak rekordów DNS</div>';
+    } else {
+        container.innerHTML = html;
+    }
+}

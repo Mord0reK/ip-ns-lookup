@@ -229,21 +229,30 @@ export default {
         });
       }
 
-      // 1. DNS Logic
-      const dnsPromise = performDNSLookups(target, DNS_TYPES);
+      const isIp = IP_REGEX.test(target);
+      let dns, ipapi;
 
-      // 2. ipapi.is Logic
-      const ipapiPromise = (async () => {
-        try {
-          const res = await fetch(`https://api.ipapi.is/?q=${target}`);
-          if (!res.ok) throw new Error("ipapi.is failed");
-          return await res.json();
-        } catch (e) {
-          return { error: "ipapiError", message: e.message };
-        }
-      })();
+      if (isIp) {
+        // For IP, we can do both in parallel
+        [dns, ipapi] = await Promise.all([
+          performDNSLookups(target, DNS_TYPES),
+          fetch(`https://api.ipapi.is/?q=${target}`)
+            .then(res => res.json())
+            .catch(e => ({ error: "ipapiError", message: e.message }))
+        ]);
+      } else {
+        // For domain, we need DNS first to find the IP
+        dns = await performDNSLookups(target, DNS_TYPES);
 
-      const [dns, ipapi] = await Promise.all([dnsPromise, ipapiPromise]);
+        // Find first A or AAAA record
+        const resolvedIp = dns.A?.[0]?.data || dns.AAAA?.[0]?.data;
+        // If we found an IP, use it for ipapi.is. Otherwise, fallback to domain (though it won't give geo)
+        const ipapiTarget = resolvedIp || target;
+
+        ipapi = await fetch(`https://api.ipapi.is/?q=${ipapiTarget}`)
+          .then(res => res.json())
+          .catch(e => ({ error: "ipapiError", message: e.message }));
+      }
 
       return new Response(JSON.stringify({ target, dns, ipapi }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
