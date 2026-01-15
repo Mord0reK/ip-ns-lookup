@@ -1,6 +1,16 @@
 // --- Map Initialization ---
 let map, currentMarker;
 
+// Fix Leaflet marker icon paths (common issue with CDNs and bundlers)
+if (typeof L !== 'undefined') {
+    delete L.Icon.Default.prototype._getIconUrl;
+    L.Icon.Default.mergeOptions({
+        iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+    });
+}
+
 // Initialize map only if Leaflet is available
 try {
     if (typeof L !== 'undefined') {
@@ -104,8 +114,16 @@ async function handleAnalyze() {
             throw new Error('Podana domena nie istnieje lub nie posiada rekordów DNS.');
         }
 
-        renderData(data);
         resultsDiv.classList.remove('hidden');
+        renderData(data);
+
+        // Fix for Leaflet map tiles not loading correctly in hidden containers
+        if (map) {
+            setTimeout(() => {
+                map.invalidateSize();
+            }, 100);
+        }
+
         saveToHistory(target);
 
     } catch (err) {
@@ -365,6 +383,13 @@ function renderGeoCard(ipapi) {
 
 function renderMap(ipapi) {
     const mapOverlay = document.getElementById('mapOverlay');
+
+    // Always clear existing marker before checking for new location
+    if (currentMarker && map) {
+        map.removeLayer(currentMarker);
+        currentMarker = null;
+    }
+
     if (!ipapi || !ipapi.location || !ipapi.location.latitude) {
         mapOverlay.classList.remove('hidden');
         return;
@@ -374,9 +399,10 @@ function renderMap(ipapi) {
     const { latitude, longitude, city, country } = ipapi.location;
 
     if (map) {
+        // Ensure map is correctly sized especially when hidden container became visible
+        map.invalidateSize();
         map.setView([latitude, longitude], 11);
 
-        if (currentMarker) map.removeLayer(currentMarker);
 
         currentMarker = L.marker([latitude, longitude]).addTo(map);
         currentMarker.bindPopup(`<b class="text-zinc-900">${city}, ${country}</b>`).openPopup();
