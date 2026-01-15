@@ -92,7 +92,10 @@ async function performDNSLookups(target, dnsTypes) {
           `https://cloudflare-dns.com/dns-query?name=${queryName}&type=${type}`,
           { headers: { accept: "application/dns-json" } }
         );
-        if (!res.ok) throw new Error(`DNS ${type} failed`);
+        if (!res.ok) {
+          results[type] = [];
+          return;
+        }
         const data = await res.json();
         results[type] = data.Answer || [];
       } catch (e) {
@@ -129,9 +132,8 @@ export default {
     if (url.pathname === "/" && request.method === "GET") {
       // For curl requests, return client IP info directly as JSON
       if (isCurl) {
-        const clientIP = getClientIP(request);
-        const target = clientIP;
-        
+        const target = getClientIP(request);
+
         // 1. DNS Logic
         const dnsPromise = performDNSLookups(target, DNS_TYPES);
 
@@ -139,7 +141,7 @@ export default {
         const ipapiPromise = (async () => {
           try {
             const res = await fetch(`https://api.ipapi.is/?q=${target}`);
-            if (!res.ok) throw new Error("ipapi.is failed");
+            if (!res.ok) return { error: "ipapiError", message: "ipapi.is failed" };
             return await res.json();
           } catch (e) {
             return { error: "ipapiError", message: e.message };
@@ -196,7 +198,12 @@ export default {
 
       try {
         const res = await fetch(`https://api.ipapi.is/?whois=AS${asnNumber}`);
-        if (!res.ok) throw new Error("ipapi.is API failed");
+        if (!res.ok) {
+           return new Response(JSON.stringify({ error: "asnInfoError", message: "ipapi.is API failed" }), {
+             status: 500,
+             headers: { ...corsHeaders, "Content-Type": "application/json" },
+           });
+        }
         const data = await res.json();
         return new Response(JSON.stringify(data), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
