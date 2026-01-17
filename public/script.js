@@ -152,6 +152,13 @@ function renderData(data) {
     renderMap(data.ipapi);
     renderAbuseCard(data.ipapi);
     renderDNS(data.dns);
+
+    // Automatically trigger ASN details if available
+    if (data.ipapi?.asn?.asn) {
+        handleASNClick(data.ipapi.asn.asn, false);
+    } else {
+        document.getElementById('asnSection').classList.add('hidden');
+    }
 }
 
 function getHistory() {
@@ -274,13 +281,13 @@ function renderInfrastructureCard(ipapi) {
     container.innerHTML = '';
 
     if (!ipapi || (!ipapi.datacenter && !ipapi.asn?.route)) {
-        container.innerHTML = '<div class="text-zinc-600 text-sm italic text-center py-4">Brak danych o infrastrukturze.</div>';
         return;
     }
 
     // Datacenter
     if (ipapi.datacenter) {
         const div = document.createElement('div');
+        div.className = 'border-t border-zinc-800 pt-3 mt-1';
         div.innerHTML = `
             <span class="text-zinc-500 text-xs uppercase tracking-wider block mb-2">Centrum Danych</span>
             <div class="space-y-1">
@@ -295,10 +302,12 @@ function renderInfrastructureCard(ipapi) {
     // Route
     if (ipapi.asn?.route) {
         const div = document.createElement('div');
-        div.className = "mt-4";
+        // If datacenter exists, add border between them. 
+        // If not, add border-t to separate from Network Card section
+        div.className = "flex justify-between items-center py-2 border-t border-zinc-800 mt-1";
         div.innerHTML = `
-            <span class="text-zinc-500 text-xs uppercase tracking-wider block mb-2">Rozgłaszana Trasa (Route)</span>
-            <div class="bg-zinc-800 text-sky-400 px-2 py-1 rounded text-xs border border-zinc-700 font-mono w-fit">
+            <span class="text-zinc-500 text-xs uppercase tracking-wider">Trasa (Route)</span>
+            <div class="bg-zinc-800 text-sky-400 px-2 py-0.5 rounded text-xs border border-zinc-700 font-mono">
                 ${ipapi.asn.route}
             </div>
         `;
@@ -464,7 +473,7 @@ function renderAbuseCard(ipapi) {
 }
 
 // --- ASN Logic ---
-async function handleASNClick(asnNumber) {
+async function handleASNClick(asnNumber, autoScroll = true) {
     if (!asnNumber) return;
 
     const section = document.getElementById('asnSection');
@@ -472,7 +481,9 @@ async function handleASNClick(asnNumber) {
 
     // Show section and show loading state
     section.classList.remove('hidden');
-    section.scrollIntoView({ behavior: 'smooth' });
+    if (autoScroll) {
+        section.scrollIntoView({ behavior: 'smooth' });
+    }
     content.innerHTML = `
         <div class="col-span-full flex flex-col items-center py-12 text-zinc-500">
             <svg class="animate-spin h-8 w-8 mb-4 text-purple-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -502,8 +513,8 @@ async function handleASNClick(asnNumber) {
 function renderASNInfo(data) {
     const content = document.getElementById('asnContent');
 
-    // ipapi.is ASN response structure (from ?whois=AS...)
-    const asnData = data.asn || data; // handle if data is already the asn object
+    // ipapi.is ASN response structure (from ?q=AS...)
+    const asnData = (data.asn && typeof data.asn === 'object') ? data.asn : data;
 
     const fields = [
         { label: 'Numer ASN', value: `AS${asnData.asn}` },
@@ -545,7 +556,7 @@ function renderASNInfo(data) {
              </div>
              <div class="text-zinc-200 font-bold text-xl mb-1">${asnData.org}</div>
              <div class="text-zinc-500 text-xs uppercase tracking-widest">${asnData.country} &bull; ${asnData.type}</div>
-             <a href="https://api.ipapi.is/?whois=AS${asnData.asn}" target="_blank" class="mt-6 text-xs text-sky-400 border border-sky-500/30 px-4 py-2 rounded-full hover:bg-sky-500/10 transition-colors">
+             <a href="https://api.ipapi.is/?q=AS${asnData.asn}" target="_blank" class="mt-6 text-xs text-sky-400 border border-sky-500/30 px-4 py-2 rounded-full hover:bg-sky-500/10 transition-colors">
                 Zobacz WHOIS w ipapi.is
              </a>
         </div>
