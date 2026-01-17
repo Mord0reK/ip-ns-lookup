@@ -197,7 +197,7 @@ export default {
       const asnNumber = asn.replace(/\D/g, "");
 
       try {
-        const res = await fetch(`https://api.ipapi.is/?whois=AS${asnNumber}`);
+        const res = await fetch(`https://api.ipapi.is/?q=AS${asnNumber}`);
         if (!res.ok) {
            return new Response(JSON.stringify({ error: "asnInfoError", message: "ipapi.is API failed" }), {
              status: 500,
